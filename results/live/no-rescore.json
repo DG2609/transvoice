@@ -1,0 +1,21 @@
+{
+  "name": "no-rescore",
+  "cpus": "12,13,14,15",
+  "rescore": false,
+  "mt_fast": false,
+  "drafts": true,
+  "asr_error": {
+    "ja": 9.86,
+    "en": 17.28
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 3.0
+  },
+  "drafts_per_sentence": {
+    "ja": 0.77,
+    "en": 0.22
+  },
+  "final_lag_p50_ms": 4404,
+  "final_lag_p90_ms": 8085
+}

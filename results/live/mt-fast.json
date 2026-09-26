@@ -1,0 +1,21 @@
+{
+  "name": "mt-fast",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "asr_error": {
+    "ja": 7.84,
+    "en": 16.43
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 3.0
+  },
+  "drafts_per_sentence": {
+    "ja": 0.86,
+    "en": 0.27
+  },
+  "final_lag_p50_ms": 4250,
+  "final_lag_p90_ms": 12488
+}

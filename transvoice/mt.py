@@ -1,8 +1,10 @@
 """Translation candidates: NLLB via CTranslate2 (in-process) and GGUF LLMs via llama-server."""
+import json
 import re
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +54,10 @@ def glossary_terms(text: str, src: str, tgt: str) -> list[tuple[str, str]]:
             continue
         terms.append((m.group(0), en if tgt == "en" else ja))
     return terms
+
+
+class TranslationCancelled(Exception):
+    """A streamed translation was abandoned because a newer job superseded it."""
 
 
 @dataclass
@@ -141,11 +147,15 @@ class LlamaEngine:
             time.sleep(0.5)
         raise TimeoutError("llama-server did not become healthy")
 
-    def translate(self, text: str, src: str, tgt: str) -> Translation:
+    def translate(self, text: str, src: str, tgt: str, cancel: threading.Event | None = None) -> Translation:
+        """With `cancel`, the answer is streamed and abandoned as soon as `cancel` is set: closing the
+        connection makes llama-server stop generating, so a stale draft does not delay the next job."""
         req = self.prompt(text, src, tgt)
         common = {"temperature": 0, "repeat_penalty": 1.05, "cache_prompt": self.reuse_prefix}
         t0 = time.perf_counter()
-        if "messages" in req:
+        if cancel is not None:
+            out, n = self._stream(req, common, cancel)
+        elif "messages" in req:
             r = requests.post(f"{self.url}/v1/chat/completions",
                               json={"messages": req["messages"], "max_tokens": 384, "stop": req.get("stop", []),
                                     **common, **req.get("extra", {})}, timeout=300)
@@ -166,6 +176,36 @@ class LlamaEngine:
             # Some chat models append "(Note: ...)" after a blank line; an app would keep only the first block.
             out = out.split("\n\n", 1)[0].strip()
         return Translation(out, time.perf_counter() - t0, n)
+
+    def _stream(self, req: dict, common: dict, cancel: threading.Event) -> tuple[str, int]:
+        chat = "messages" in req
+        if chat:
+            url = f"{self.url}/v1/chat/completions"
+            body = {"messages": req["messages"], "max_tokens": 384, "stop": req.get("stop", []),
+                    **common, **req.get("extra", {})}
+        else:
+            url = f"{self.url}/completion"
+            body = {"prompt": req["prompt"], "stop": req["stop"], "n_predict": 384, **common}
+        parts = []
+        with requests.post(url, json={**body, "stream": True}, stream=True, timeout=300) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if cancel.is_set():
+                    raise TranslationCancelled()
+                if not line.startswith(b"data: "):
+                    continue
+                data = line[6:]
+                if data == b"[DONE]":
+                    break
+                obj = json.loads(data)
+                if chat:
+                    choices = obj.get("choices") or [{}]
+                    parts.append(choices[0].get("delta", {}).get("content") or "")
+                else:
+                    parts.append(obj.get("content", ""))
+                    if obj.get("stop"):
+                        break
+        return "".join(parts), len(parts)
 
     def close(self) -> None:
         self.proc.terminate()

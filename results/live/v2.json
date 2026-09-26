@@ -1,0 +1,21 @@
+{
+  "name": "v2",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": false,
+  "drafts": true,
+  "asr_error": {
+    "ja": 9.36,
+    "en": 14.73
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.82,
+    "en": 1.06
+  },
+  "final_lag_p50_ms": 8474,
+  "final_lag_p90_ms": 15031
+}

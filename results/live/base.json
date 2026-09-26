@@ -1,0 +1,21 @@
+{
+  "name": "base",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": false,
+  "drafts": true,
+  "asr_error": {
+    "ja": 7.84,
+    "en": 16.43
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 3.0
+  },
+  "drafts_per_sentence": {
+    "ja": 0.77,
+    "en": 0.24
+  },
+  "final_lag_p50_ms": 4879,
+  "final_lag_p90_ms": 14695
+}

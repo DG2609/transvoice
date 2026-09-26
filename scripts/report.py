@@ -60,7 +60,7 @@ def mt_section() -> str:
              "COMET = wmt22-comet-da (higher is better). Bad % = COMET < 0.65 or a broken-output flag "
              "(empty, wrong language, too short/long, repetition, commentary). `*` = timing measured on an idle machine.\n"]
     for src, tgt in sorted({k[1:] for k in speed}):
-        keys = sorted((k for k in speed if k[1:] == (src, tgt) and not k[0].startswith(("pipeline-", "edge-"))),
+        keys = sorted((k for k in speed if k[1:] == (src, tgt) and not k[0].startswith(("pipeline-", "edge-", "live-"))),
                       key=lambda k: -(comet.get(k, {}).get("comet") or 0))
         parts.append(f"### {src} → {tgt}\n")
         parts.append(_table(
@@ -98,6 +98,25 @@ def pipeline_section() -> str:
         rows) + "\n"
 
 
+def live_section() -> str:
+    comet = {(r["engine"], r["src"], r["tgt"]): r for r in _load(RES / "mt" / "comet_summary.jsonl")}
+    runs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((RES / "live").glob("*.json"))]
+    if not runs:
+        return ""
+    rows = []
+    for r in runs:
+        scores = {k[1]: v for k, v in comet.items() if k[0] == f"live-{r['name']}"}
+        rows.append([r["name"], r["cpus"], r["rescore"], r["mt_fast"],
+                     " ".join(f"{l}:{e}" for l, e in r["asr_error"].items()),
+                     " ".join(f"{s}→vi:{v['comet']}" for s, v in sorted(scores.items())),
+                     " ".join(f"{s}:{v['bad_rate']}" for s, v in sorted(scores.items())),
+                     r["final_lag_p50_ms"], r["final_lag_p90_ms"]])
+    return ("## Live app, end to end (FLEURS speech played in real time through the engine)\n\n"
+            "Final subtitles only. Lag = time from the speaker's last chunk to the final translation.\n\n"
+            + _table(["run", "CPUs", "rescore", "mt_fast", "ASR error %", "COMET", "bad %", "lag p50 ms",
+                      "lag p90 ms"], rows) + "\n")
+
+
 def stability_section() -> str:
     runs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((RES / "stability").glob("*.json"))]
     runs = [r for r in runs if r["name"] != "smoke"]
@@ -126,7 +145,7 @@ NOTE = (
 
 def main() -> None:
     text = ("# TransVoice CPU benchmark\n\n" + NOTE + asr_section() + "\n" + lid_section() + "\n" + mt_section()
-            + "\n" + pipeline_section() + "\n" + stability_section())
+            + "\n" + pipeline_section() + "\n" + live_section() + "\n" + stability_section())
     (RES / "REPORT.md").write_text(text, encoding="utf-8")
     print(text)
 

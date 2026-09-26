@@ -140,6 +140,18 @@ COMET = wmt22-comet-da (higher is better). Bad % = COMET < 0.65 or a broken-outp
 | A-office | 12,13,14,15 | ja:5.55 en:7.67 vi:10.77 | 0.8672 | 2.9 | 5309 | 9056 | 3460 | 3.53 |
 | C-office | 12,13,14,15 | ja:5.55 en:7.67 vi:10.77 | 0.8729 | 2.1 | 10871 | 16244 | 5633 | 3.67 |
 
+## Live app, end to end (FLEURS speech played in real time through the engine)
+
+Final subtitles only. Lag = time from the speaker's last chunk to the final translation.
+
+| run | CPUs | rescore | mt_fast | ASR error % | COMET | bad % | lag p50 ms | lag p90 ms |
+|---|---|---|---|---|---|---|---|---|
+| base | 12,13,14,15 | True | False | ja:7.84 en:16.43 | en→vi:0.8056 ja→vi:0.8622 | en:6.7 ja:6.7 | 4879 | 14695 |
+| mt-fast | 12,13,14,15 | True | True | ja:7.84 en:16.43 | en→vi:0.8125 ja→vi:0.8614 | en:6.7 ja:6.7 | 4250 | 12488 |
+| no-rescore | 12,13,14,15 | False | False | ja:9.86 en:17.28 | en→vi:0.8043 ja→vi:0.8426 | en:6.7 ja:0.0 | 4404 | 8085 |
+| v2 | 12,13,14,15 | True | False | ja:9.36 en:14.73 | en→vi:0.8776 ja→vi:0.8583 | en:0.0 ja:0.0 | 8474 | 15031 |
+| v3 | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8574 | en:0.0 ja:0.0 | 6164 | 9140 |
+
 ## Stability
 
 | config | minutes | utterances | errors | RAM start MB | RAM max MB | RAM growth 2nd half MB | e2e p99 ms | ASR text on non-speech | MT edge-case problems | MT critical errors |

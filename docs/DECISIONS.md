@@ -56,6 +56,33 @@ Replay of a real YouTube street-interview recording (desktop CPU): sentences med
 final translation median 3.0 s after the speaker's last chunk. HY-MT Q8_0 was tried against Q4_K_M on the
 mistranslated sentences: same errors (they come from long, ASR-garbled input), 50% slower, +0.8 GB → keep Q4.
 
+## Optimization round 2 (v0.2.0)
+
+Measured with `scripts/run_live_eval.py`: 30 FLEURS utterances (15 ja, 15 en → vi) played in real time
+through the engine on 4 E-cores (office-PC profile); final subtitles scored with CER/WER and COMET.
+
+| | v0.1.0 | v0.2.0 |
+|---|---|---|
+| COMET en→vi / ja→vi | 0.804 / 0.843 | **0.880 / 0.857** |
+| bad translations | up to 6.7% | **0%** |
+| ASR error ja / en | 9.9% / 17.3% | **9.4% / 14.7%** |
+| final lag p50 / p90 | 4.4 / 8.1 s | 6.2 / 9.1 s |
+
+What changed and why:
+- **False periods on English chunks.** SenseVoice ends every chunk with ".", even when the chunk was cut
+  mid-sentence ("On August. 15"). That split every English sentence at each cut, so fragments were translated
+  without context. Periods at forced cuts are now dropped, and at chunk joins only Japanese endings (real words)
+  may close a sentence. English sentences per utterance went from 3.0 to 1.2 and COMET en→vi from 0.80 to 0.88.
+- **Whole-sentence re-recognition** when a sentence ends (sentences ≤10 s whose audio is not shared with a
+  neighbour, and only when ASR is not behind). Fixes words garbled at chunk joins (ja CER −20% relative).
+  Unbounded, it pushed p90 lag to 15 s on office CPUs; the bounds keep it at 9 s.
+- **Fast re-translation** (`mt_fast`): llama.cpp reuses the KV cache of the shared prompt prefix and drafts
+  tokens with n-gram lookup. ~13–18% faster, COMET unchanged.
+- **Stale drafts are cancelled** when a sentence ends (translations are streamed; closing the connection stops
+  llama-server), so the final translation does not wait for an outdated draft.
+- The final lag is higher than v0.1.0 because each final now covers a whole sentence instead of a fragment;
+  drafts still appear while the sentence is being spoken.
+
 ## Known limitations
 
 - A one-chunk sentence shorter than 2 s right after a language switch can still be recognised in the previous

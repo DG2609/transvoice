@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 from transvoice.engine import Engine, Settings, _ChannelVad, ends_sentence, is_noise, split_sentences
-from transvoice.mt import Translation
+from transvoice.mt import Translation, TranslationCancelled
 
 
 def test_is_noise_drops_fillers():
@@ -48,6 +48,14 @@ def test_continuation_after_ending_stays_in_the_sentence():
     chunks = ["昨日は会議がありました", "が、すぐ終わりました"]
     e, events, finals = _run(chunks, forced=[True, False], gap=0.1)
     assert finals[0].text == "昨日は会議がありましたが、すぐ終わりました"
+
+
+def test_false_period_at_forced_english_cut_is_ignored():
+    chunks = ["On August.", "15, 1940, the allies invaded.", "Next sentence starts here."]
+    _, _, finals = _run(chunks, forced=[True, False, False], lang="en", gap=0.1, wait_finals=2,
+                        rescore_final=False)  # checks the chunk-level joining itself
+    assert finals[0].text == "On August 15, 1940, the allies invaded."
+    assert finals[1].text == "Next sentence starts here."
 
 
 def test_chunk_spanning_two_sentences_is_split():
@@ -161,24 +169,33 @@ def test_long_speech_without_pause_is_cut_at_hard_limit():
 # ---- sentences, drafts and final translations (fake ASR/MT, real threads) ----
 
 class FakeAsr:
-    """Returns the text whose index is stored in the first sample."""
+    """Each fake chunk is a constant array holding its text index. Audio joined from several chunks (the
+    whole-sentence pass) returns `whole` if given, else the chunk texts joined."""
 
-    def __init__(self, texts, delay=0.0):
-        self.texts, self.delay = texts, delay
+    def __init__(self, texts, delay=0.0, whole=None, joiner=""):
+        self.texts, self.delay, self.whole, self.joiner = texts, delay, whole, joiner
 
     def transcribe(self, samples):
         time.sleep(self.delay)
-        return self.texts[int(samples[0])]
+        runs = [int(v) for i, v in enumerate(samples) if i == 0 or v != samples[i - 1]]
+        if len(runs) > 1 and self.whole is not None:
+            return self.whole
+        return self.joiner.join(self.texts[r] for r in runs)
 
 
 class FakeMt:
     def __init__(self, delay=0.0):
-        self.delay, self.calls = delay, []
+        self.delay, self.calls, self.cancelled = delay, [], []
         self.pids = []
 
-    def translate(self, text, src, tgt):
+    def translate(self, text, src, tgt, cancel=None):
         self.calls.append(text)
-        time.sleep(self.delay)
+        deadline = time.time() + self.delay
+        while time.time() < deadline:
+            if cancel is not None and cancel.is_set():
+                self.cancelled.append(text)
+                raise TranslationCancelled()
+            time.sleep(0.01)
         return Translation(f"<{text}>", self.delay)
 
     def close(self):
@@ -195,7 +212,7 @@ def _run(texts, forced, lang="ja", my_lang="vi", mt_delay=0.0, gap=0.0, wait_fin
             done.set()
 
     e = Engine(Settings(my_lang=my_lang, their_lang=lang, sentence_gap_s=0.3, **settings), on_event)
-    e.asr = {lang: FakeAsr(texts, asr_delay)}
+    e.asr = {lang: FakeAsr(texts, asr_delay, joiner="" if lang == "ja" else " ")}
     e.mt = FakeMt(mt_delay)
     e._start_workers()
     for i, f in enumerate(forced):
@@ -230,6 +247,43 @@ def test_backlogged_chunks_stay_in_their_sentence():
     chunks = ["合金とは基本的には2種類以上の金", "属の混合物です"]
     _, _, finals = _run(chunks, forced=[True, False], asr_delay=0.5, ended_ago=15, chunk_hard_s=1.0)
     assert len(finals) == 1 and finals[0].text == "".join(chunks)
+
+
+def test_final_uses_whole_sentence_recognition():
+    # Chunk-by-chunk ASR duplicated a word at the cut; the whole-sentence pass fixes the final text.
+    events, done = [], threading.Event()
+
+    def on_event(kind, payload):
+        events.append((kind, payload))
+        if kind == "translated" and payload.final:
+            done.set()
+
+    e = Engine(Settings(my_lang="vi", their_lang="ja", sentence_gap_s=0.3), on_event)
+    e.asr = {"ja": FakeAsr(["日本は一番", "一番新鮮な魚です"], whole="日本は一番新鮮な魚です")}
+    e.mt = FakeMt()
+    e._start_workers()
+    e._enqueue("them", np.full(24000, 0, np.float32), time.time(), True)
+    time.sleep(0.1)
+    e._enqueue("them", np.full(24000, 1, np.float32), time.time(), False)
+    assert done.wait(5)
+    e.stop()
+    final = [p for k, p in events if k == "translated" and p.final][0]
+    assert final.text == "日本は一番新鮮な魚です" and final.translation == "<日本は一番新鮮な魚です>"
+
+
+def test_rescore_can_be_disabled():
+    chunks = ["日本は一番", "一番新鮮な魚です"]
+    _, _, finals = _run(chunks, forced=[True, False], gap=0.1, rescore_final=False)
+    assert finals[0].text == "日本は一番一番新鮮な魚です"
+
+
+def test_stale_draft_is_cancelled_when_the_sentence_ends():
+    # A slow draft of the first chunk is running when the sentence closes with more text: it must be
+    # abandoned, and the final translation of the whole sentence must still arrive.
+    chunks = ["明日の会議には", "参加できないと思います"]
+    e, events, finals = _run(chunks, forced=[True, False], mt_delay=1.0, gap=0.2, rescore_final=False)
+    assert e.mt.cancelled == ["明日の会議には"]
+    assert finals[0].translation == "<明日の会議には参加できないと思います>"
 
 
 def test_slow_translation_skips_stale_drafts():

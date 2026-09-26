@@ -25,7 +25,7 @@ import sherpa_onnx
 
 from .asr import REGISTRY as ASR
 from .audio import AutoGain
-from .mt import LlamaEngine, MT_DIR, make_hy_mt_prompt
+from .mt import LlamaEngine, MT_DIR, TranslationCancelled, make_hy_mt_prompt
 from .paths import MODELS, SAMPLE_RATE
 from .textnorm import asr_text_for_mt, normalize
 
@@ -52,6 +52,13 @@ class Settings:
     sentence_gap_s: float = 0.8  # extra pause after a chunk that closes the sentence
     sentence_max_s: float = 12.0  # close long sentences so the final re-translation stays fast
     drafts: bool = True  # translate unfinished sentences (live feel); False = only finished sentences
+    # When a sentence ends, recognise its whole audio again: chunk cuts garble words at the joins
+    # ("一番一番は", "金金属"), and the final translation should not inherit that.
+    rescore_final: bool = True
+    rescore_max_s: float = 10.0  # longer sentences cost too much ASR time on office CPUs (p90 lag 8 -> 15 s)
+    # Faster re-translation: reuse the KV cache of the shared prompt prefix and draft tokens with n-gram
+    # lookup. ~18% faster on 4 E-cores, but outputs are not bit-identical to the plain run.
+    mt_fast: bool = True
     lid_min_seconds: float = 1.0  # shorter first chunks reuse the last detected language
 
 
@@ -66,6 +73,8 @@ class Sentence:
     last_chunk_at: float = 0.0  # wall clock when the last chunk's audio ended
     last_forced: bool = False  # the last chunk was cut mid-speech, so the speaker is still talking
     lang_confirmed: bool = True  # False while the language is a guess from too little audio
+    shared_audio: bool = False  # split inside a chunk: its audio also holds part of a neighbouring sentence
+    rescoring: bool = False  # closed, whole-sentence recognition still running
     audio_s: float = 0.0
     closed: bool = False
     version: int = 0  # bumps whenever a chunk is appended
@@ -244,7 +253,9 @@ class Engine:
         self.mt = None
         self.lock = threading.Condition()
         self.open: dict[str, Sentence] = {}  # channel -> sentence still growing
-        self.audio_of: dict[int, list[np.ndarray]] = {}  # audio of sentences whose language is not confirmed yet
+        self.sentence_audio: dict[int, list[np.ndarray]] = {}  # chunk audio of sentences not final yet
+        self.to_rescore: list[Sentence] = []
+        self.mt_job: tuple | None = None  # (sentence id, is draft, version, cancel event) being translated
         self.queued: collections.Counter = collections.Counter()  # chunks waiting for ASR, per channel
         self.pending: dict[int, Sentence] = {}  # sentences that still need translation or a final event
         self.mt_busy = False
@@ -258,8 +269,9 @@ class Engine:
             self.asr[lang] = ASR[self.s.asr[lang]].build(lang, self.s.asr_threads)
         if self.s.their_lang == "auto":
             self.lid = LanguageId(self.s.asr_threads)
+        fast = dict(reuse_prefix=True, extra_args=("--spec-type", "ngram-mod")) if self.s.mt_fast else {}
         self.mt = LlamaEngine(Path(self.s.mt_model), make_hy_mt_prompt(self.s.glossary), self.s.mt_threads,
-                              low_priority=self.s.low_priority)
+                              low_priority=self.s.low_priority, **fast)
         self.mt.translate("Hello.", "en", "ja")  # warm-up
         self._start_workers()
         self.on_event("status", "Đang nghe")
@@ -372,22 +384,25 @@ class Engine:
                 channel, samples, ended_at, forced = self.seg_q.get(timeout=0.2)
             except queue.Empty:
                 self._close_quiet_sentences()
+                self._run_rescores()
                 continue
+            if channel != "__flush__":
+                with self.lock:
+                    self.queued[channel] -= 1  # counts chunks still waiting, not the one in hand
             try:
                 if channel == "__flush__":
                     with self.lock:
                         for ch in list(self.open):
                             self._close(ch)
+                    self._run_rescores()
                     continue
                 self._add_chunk(channel, samples, ended_at, forced)
             except Exception as e:  # noqa: BLE001 - keep the app alive, report the failure
                 self.on_event("error", f"{type(e).__name__}: {e}")
             finally:
-                if channel != "__flush__":
-                    with self.lock:
-                        self.queued[channel] -= 1
                 self.seg_q.task_done()
             self._close_quiet_sentences()
+            self._run_rescores()
 
     def _add_chunk(self, channel: str, samples: np.ndarray, ended_at: float, forced: bool) -> None:
         audio_s = len(samples) / SAMPLE_RATE
@@ -403,12 +418,16 @@ class Engine:
         else:
             # A sentence keeps its language; a guess made on a short first chunk is re-checked on more audio.
             lang, confirmed = current.lang, current.lang_confirmed
-            audio = self.audio_of.get(current.id, []) + [samples]
+            audio = self.sentence_audio.get(current.id, []) + [samples]
             if not confirmed:
                 lang, confirmed, relabeled = self._recheck_language(current, audio)
         t1 = time.perf_counter()
         text = asr_text_for_mt(self.asr[lang].transcribe(samples))
         t2 = time.perf_counter()
+        if forced and lang != "ja":
+            # SenseVoice ends every chunk with a period, even one cut mid-sentence ("On August. 15");
+            # a false period would split the English sentence at every cut.
+            text = re.sub(r"[.。]\s*$", "", text)
         noise = is_noise(text, lang, audio_s)
         if noise and relabeled is None:
             return
@@ -420,24 +439,26 @@ class Engine:
                 s.lang, s.chunks = lang, relabeled
                 s.version += 1
             s.lang_confirmed = confirmed
-            if confirmed:
-                self.audio_of.pop(s.id, None)
-            else:
-                self.audio_of[s.id] = audio
             # A chunk can span the end of one sentence and the start of the next (a question and its
             # answer); split at explicit sentence punctuation so each sentence is translated on its own.
             pieces = [] if noise else split_sentences(text, lang)
             snaps = []
             for i, piece in enumerate(pieces):
                 if s is not None and s.chunks and ends_sentence(s.chunks[-1], lang) \
-                        and not continues_sentence(piece, lang):
+                        and not continues_sentence(piece, lang) and (lang == "ja" or not s.last_forced):
                     # The previous chunk ended a sentence exactly at the cut ("…思いますか" | "やっぱ…").
+                    # Japanese endings are words, so they count even at a forced cut; Latin punctuation at
+                    # a forced cut is only an ASR guess.
                     self._close(channel)
                     snaps.append(s.snapshot())
                     s = None
                 if s is None:
                     s = self._new_sentence(channel, lang, ended_at - audio_s)
                     s.lang_confirmed = confirmed
+                if len(pieces) > 1:
+                    s.shared_audio = True
+                else:
+                    self.sentence_audio.setdefault(s.id, []).append(samples)
                 s.chunks.append(piece)
                 s.version += 1
                 s.audio_s += audio_s * len(piece) / max(1, len(text))
@@ -468,11 +489,45 @@ class Engine:
     def _close(self, channel: str) -> None:
         """Caller holds the lock."""
         s = self.open.pop(channel, None)
-        if s is not None:
-            s.closed = True
-            self.audio_of.pop(s.id, None)
-            self.pending[s.id] = s
-            self.lock.notify_all()
+        if s is None:
+            return
+        s.closed = True
+        audio = self.sentence_audio.get(s.id, [])
+        if (self.s.rescore_final and not s.shared_audio and len(s.chunks) >= 2 and len(audio) >= 2
+                and sum(len(a) for a in audio) <= self.s.rescore_max_s * SAMPLE_RATE
+                and not self.queued[channel]):  # when ASR is already behind, keep up instead
+            s.rescoring = True  # the translator waits for the whole-sentence text
+            self.to_rescore.append(s)
+        else:
+            self.sentence_audio.pop(s.id, None)
+        self._cancel_stale_draft(s)
+        self.pending[s.id] = s
+        self.lock.notify_all()
+
+    def _cancel_stale_draft(self, s: Sentence) -> None:
+        """Caller holds the lock. The sentence just ended; if the translator is busy with a draft of an older
+        text (or of text the whole-sentence pass will replace), stop it so the final starts right away."""
+        job = self.mt_job
+        if job and job[0] == s.id and job[1] and (s.rescoring or job[2] != s.version):
+            job[3].set()
+
+    def _run_rescores(self) -> None:
+        """ASR thread: re-recognise finished multi-chunk sentences in one pass."""
+        while True:
+            with self.lock:
+                if not self.to_rescore:
+                    return
+                s = self.to_rescore.pop(0)
+                audio = self.sentence_audio.pop(s.id, [])
+            text = asr_text_for_mt(self.asr[s.lang].transcribe(np.concatenate(audio))) if audio else ""
+            with self.lock:
+                if text and not is_noise(text, s.lang, s.audio_s) and text != s.text:
+                    s.chunks = [text]
+                    s.version += 1
+                s.rescoring = False
+                snap = s.snapshot()
+                self.lock.notify_all()
+            self.on_event("heard", snap)
 
     def _close_quiet_sentences(self) -> None:
         """A sentence ends at a real pause: its last chunk ended in silence and nobody has spoken since.
@@ -498,6 +553,8 @@ class Engine:
         """Caller holds the lock. Oldest sentence first; drafts only when enabled."""
         for sid in sorted(self.pending):
             s = self.pending[sid]
+            if s.rescoring:
+                continue
             if s.needs_translation and (s.closed or self.s.drafts):
                 return s
             if s.final:
@@ -514,14 +571,21 @@ class Engine:
                 text, version, lang, target = job.text, job.version, job.lang, job.target
                 needs = job.needs_translation
                 self.mt_busy = needs
+                cancel = threading.Event()
+                self.mt_job = (job.id, not job.closed, version, cancel)
             tr, failed = None, False
             try:
-                tr = self.mt.translate(text, lang, target) if needs else None
+                tr = self.mt.translate(text, lang, target, cancel=cancel) if needs else None
+            except TranslationCancelled:
+                tr = None  # superseded by the final version of this sentence
             except Exception as e:  # noqa: BLE001 - report, then move on instead of retrying forever
                 self.on_event("error", f"{type(e).__name__}: {e}")
                 failed = True
             with self.lock:
                 self.mt_busy = False
+                self.mt_job = None
+                if cancel.is_set() and tr is None:
+                    continue  # no event: the final translation is next in line
                 if tr is not None and version >= job.translated_version:
                     job.translation = tr.text
                     job.translated_version = version
