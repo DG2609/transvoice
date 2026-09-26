@@ -24,7 +24,11 @@ EXCLUDE = ["pandas", "pyarrow", "ctranslate2", "sentencepiece", "sacrebleu", "ji
 # in the README), and bundling the build machine's copies would demand its glibc version on every user's PC.
 LINUX_SYSTEM_LIBS = ("libstdc++.so", "libgcc_s.so", "libmvec.so", "libasound.so", "libsystemd.so", "libX", "libxcb",
                      "libportaudio.so", "libjack.so", "libpulse", "libsndfile.so", "libdbus", "libcap.so", "libgcrypt",
-                     "liblzma.so", "libzstd.so", "liblz4.so", "libgpg-error")
+                     "liblzma.so", "libzstd.so", "liblz4.so", "libgpg-error", "libFLAC.so", "libapparmor.so",
+                     "libasyncns.so", "libdb-", "libmp3lame.so", "libmpg123.so", "libogg.so", "libopus.so",
+                     "libvorbis", "libz.so")
+# Libraries repaired into wheels by auditwheel carry a hash in their name (libasound-fb5348bf.so) and were
+# built for old glibc, so the plain-name prefixes above never match them.
 
 
 def drop_linux_system_libs(app: Path) -> None:
