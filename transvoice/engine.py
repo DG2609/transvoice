@@ -10,6 +10,7 @@ final. If translation falls behind, intermediate drafts are skipped: only the ne
 
 Threads: VAD, ASR and MT run separately so recognition of the next chunk overlaps translation.
 """
+import collections
 import itertools
 import queue
 import re
@@ -244,6 +245,7 @@ class Engine:
         self.lock = threading.Condition()
         self.open: dict[str, Sentence] = {}  # channel -> sentence still growing
         self.audio_of: dict[int, list[np.ndarray]] = {}  # audio of sentences whose language is not confirmed yet
+        self.queued: collections.Counter = collections.Counter()  # chunks waiting for ASR, per channel
         self.pending: dict[int, Sentence] = {}  # sentences that still need translation or a final event
         self.mt_busy = False
         self.threads: list[threading.Thread] = []
@@ -316,12 +318,12 @@ class Engine:
                 if channel == "__flush__":
                     for ch, cv in self.vads.items():
                         for seg, forced in cv.flush():
-                            self.seg_q.put((ch, seg, time.time(), forced))
+                            self._enqueue(ch, seg, time.time(), forced)
                     self.seg_q.put(("__flush__", None, time.time(), False))
                     continue
                 cv = self._vad_for(channel)
                 for seg, forced in cv.accept(self.agc.setdefault(channel, AutoGain())(samples)):
-                    self.seg_q.put((channel, seg, time.time(), forced))
+                    self._enqueue(channel, seg, time.time(), forced)
             finally:
                 self.audio_q.task_done()
 
@@ -359,6 +361,11 @@ class Engine:
             return self.s.my_lang
         return self.their_last or next(l for l in self.s.langs if l != self.s.my_lang)
 
+    def _enqueue(self, channel: str, samples: np.ndarray, ended_at: float, forced: bool) -> None:
+        with self.lock:
+            self.queued[channel] += 1
+        self.seg_q.put((channel, samples, ended_at, forced))
+
     def _asr_loop(self) -> None:
         while not self.stop_flag.is_set():
             try:
@@ -376,6 +383,9 @@ class Engine:
             except Exception as e:  # noqa: BLE001 - keep the app alive, report the failure
                 self.on_event("error", f"{type(e).__name__}: {e}")
             finally:
+                if channel != "__flush__":
+                    with self.lock:
+                        self.queued[channel] -= 1
                 self.seg_q.task_done()
             self._close_quiet_sentences()
 
@@ -470,6 +480,8 @@ class Engine:
         now = time.time()
         with self.lock:
             for ch, s in list(self.open.items()):
+                if self.queued[ch]:
+                    continue  # chunks still waiting for ASR may continue this sentence (slow CPU)
                 cv = self.vads.get(ch)
                 if cv is not None:
                     # Real audio: trust the VAD. A cut at the fading end of a sentence is marked "forced",

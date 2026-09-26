@@ -94,9 +94,9 @@ def test_short_first_chunk_in_wrong_language_is_relabeled():
     e.asr = {"vi": FakeAsr(["Quay được", "gì đó"]), "ja": FakeAsr(["ワイルドカードを", "購入するとお得です"])}
     e.mt = FakeMt()
     e._start_workers()
-    e.seg_q.put(("them", np.full(12800, 0, np.float32), time.time(), True))
+    e._enqueue("them", np.full(12800, 0, np.float32), time.time(), True)
     time.sleep(0.2)
-    e.seg_q.put(("them", np.full(24000, 1, np.float32), time.time(), False))
+    e._enqueue("them", np.full(24000, 1, np.float32), time.time(), False)
     assert done.wait(5)
     e.stop()
     final = [p for k, p in events if k == "translated" and p.final][0]
@@ -163,10 +163,11 @@ def test_long_speech_without_pause_is_cut_at_hard_limit():
 class FakeAsr:
     """Returns the text whose index is stored in the first sample."""
 
-    def __init__(self, texts):
-        self.texts = texts
+    def __init__(self, texts, delay=0.0):
+        self.texts, self.delay = texts, delay
 
     def transcribe(self, samples):
+        time.sleep(self.delay)
         return self.texts[int(samples[0])]
 
 
@@ -184,7 +185,8 @@ class FakeMt:
         pass
 
 
-def _run(texts, forced, lang="ja", my_lang="vi", mt_delay=0.0, gap=0.0, wait_finals=1, **settings):
+def _run(texts, forced, lang="ja", my_lang="vi", mt_delay=0.0, gap=0.0, wait_finals=1, asr_delay=0.0,
+         ended_ago=0.0, **settings):
     events, done = [], threading.Event()
 
     def on_event(kind, payload):
@@ -193,11 +195,11 @@ def _run(texts, forced, lang="ja", my_lang="vi", mt_delay=0.0, gap=0.0, wait_fin
             done.set()
 
     e = Engine(Settings(my_lang=my_lang, their_lang=lang, sentence_gap_s=0.3, **settings), on_event)
-    e.asr = {lang: FakeAsr(texts)}
+    e.asr = {lang: FakeAsr(texts, asr_delay)}
     e.mt = FakeMt(mt_delay)
     e._start_workers()
     for i, f in enumerate(forced):
-        e.seg_q.put(("them", np.full(24000, i, np.float32), time.time(), f))
+        e._enqueue("them", np.full(24000, i, np.float32), time.time() - ended_ago, f)
         time.sleep(gap)
     assert done.wait(5), "no final translation"
     e.stop()
@@ -220,6 +222,13 @@ def test_sentence_is_not_split_while_the_speaker_keeps_talking():
     # Chunks 2 s apart: the next chunk is being spoken, so the 0.3 s pause rule must not close the sentence.
     chunks = ["削減は中国の経済産出", "量に基づいて実施されるだろう", "と述べました"]
     _, events, finals = _run(chunks, forced=[True, True, False], gap=0.7)
+    assert len(finals) == 1 and finals[0].text == "".join(chunks)
+
+
+def test_backlogged_chunks_stay_in_their_sentence():
+    # Slow CPU: chunks queue up for ASR and their audio ended long ago; no timer may close the sentence early.
+    chunks = ["合金とは基本的には2種類以上の金", "属の混合物です"]
+    _, _, finals = _run(chunks, forced=[True, False], asr_delay=0.5, ended_ago=15, chunk_hard_s=1.0)
     assert len(finals) == 1 and finals[0].text == "".join(chunks)
 
 
