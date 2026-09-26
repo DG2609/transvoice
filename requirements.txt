@@ -1,0 +1,8 @@
+# TransVoice app
+sherpa-onnx==1.13.8
+numpy
+soundfile
+psutil
+requests
+PyAudioWPatch; sys_platform == "win32"
+sounddevice; sys_platform != "win32"

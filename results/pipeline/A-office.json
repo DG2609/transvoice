@@ -1,0 +1,58 @@
+{
+  "name": "A-office",
+  "asr": {
+    "ja": "parakeet-ja",
+    "en": "sensevoice",
+    "vi": "zipformer-vi-30m"
+  },
+  "mt": {
+    "default": "hy-mt-1.8b"
+  },
+  "cpus": "12,13,14,15",
+  "n_sentences": 40,
+  "asr_error": {
+    "ja": 5.55,
+    "en": 7.67,
+    "vi": 10.77
+  },
+  "asr_p50_ms": 803,
+  "asr_p95_ms": 2986,
+  "mt_p50_ms": 4305,
+  "mt_p95_ms": 6925,
+  "e2e_p50_ms": 5309,
+  "e2e_p95_ms": 9056,
+  "avg_cores": 3.53,
+  "total_ram_mb": 3460,
+  "pairs": {
+    "ja-en": {
+      "engine": "hy-mt-1.8b",
+      "chrf": 53.87,
+      "flag_rate": 0.0
+    },
+    "ja-vi": {
+      "engine": "hy-mt-1.8b",
+      "chrf": 43.95,
+      "flag_rate": 0.0
+    },
+    "en-ja": {
+      "engine": "hy-mt-1.8b",
+      "chrf": 36.64,
+      "flag_rate": 2.5
+    },
+    "en-vi": {
+      "engine": "hy-mt-1.8b",
+      "chrf": 51.35,
+      "flag_rate": 0.0
+    },
+    "vi-ja": {
+      "engine": "hy-mt-1.8b",
+      "chrf": 24.91,
+      "flag_rate": 2.5
+    },
+    "vi-en": {
+      "engine": "hy-mt-1.8b",
+      "chrf": 51.19,
+      "flag_rate": 0.0
+    }
+  }
+}

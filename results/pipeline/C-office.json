@@ -1,0 +1,58 @@
+{
+  "name": "C-office",
+  "asr": {
+    "ja": "parakeet-ja",
+    "en": "sensevoice",
+    "vi": "zipformer-vi-30m"
+  },
+  "mt": {
+    "default": "qwen3.5-4b"
+  },
+  "cpus": "12,13,14,15",
+  "n_sentences": 40,
+  "asr_error": {
+    "ja": 5.55,
+    "en": 7.67,
+    "vi": 10.77
+  },
+  "asr_p50_ms": 831,
+  "asr_p95_ms": 2976,
+  "mt_p50_ms": 9849,
+  "mt_p95_ms": 14431,
+  "e2e_p50_ms": 10871,
+  "e2e_p95_ms": 16244,
+  "avg_cores": 3.67,
+  "total_ram_mb": 5633,
+  "pairs": {
+    "ja-en": {
+      "engine": "qwen3.5-4b",
+      "chrf": 57.84,
+      "flag_rate": 0.0
+    },
+    "ja-vi": {
+      "engine": "qwen3.5-4b",
+      "chrf": 46.39,
+      "flag_rate": 0.0
+    },
+    "en-ja": {
+      "engine": "qwen3.5-4b",
+      "chrf": 37.38,
+      "flag_rate": 0.0
+    },
+    "en-vi": {
+      "engine": "qwen3.5-4b",
+      "chrf": 53.59,
+      "flag_rate": 0.0
+    },
+    "vi-ja": {
+      "engine": "qwen3.5-4b",
+      "chrf": 26.46,
+      "flag_rate": 0.0
+    },
+    "vi-en": {
+      "engine": "qwen3.5-4b",
+      "chrf": 54.38,
+      "flag_rate": 0.0
+    }
+  }
+}

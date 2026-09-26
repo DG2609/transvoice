@@ -1,0 +1,10 @@
+# Tests, packaging and the benchmark in bench/ + scripts/ (COMET scoring uses its own venv, see bench/README.md)
+-r requirements.txt
+pytest
+pyinstaller
+sacrebleu
+jiwer
+pandas
+pyarrow
+ctranslate2
+sentencepiece

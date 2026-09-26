@@ -1,0 +1,6 @@
+{"model": "sensevoice", "dataset": "fleurs", "lang": "ja", "n": 30, "metric": "CER", "error": 6.46, "rtf": 0.0939, "p50_ms": 1245, "p95_ms": 1905, "avg_cores": 1.89, "model_ram_mb": 354, "load_s": 1.35, "threads": 2}
+{"model": "sensevoice", "dataset": "fleurs", "lang": "en", "n": 30, "metric": "WER", "error": 9.77, "rtf": 0.0926, "p50_ms": 894, "p95_ms": 1459, "avg_cores": 1.9, "model_ram_mb": 370, "load_s": 1.34, "threads": 2}
+{"model": "parakeet-ja", "dataset": "fleurs", "lang": "ja", "n": 30, "metric": "CER", "error": 5.7, "rtf": 0.1801, "p50_ms": 2393, "p95_ms": 3674, "avg_cores": 1.89, "model_ram_mb": 793, "load_s": 2.23, "threads": 2}
+{"model": "reazonspeech-k2", "dataset": "fleurs", "lang": "ja", "n": 30, "metric": "CER", "error": 7.54, "rtf": 0.0412, "p50_ms": 558, "p95_ms": 843, "avg_cores": 3.14, "model_ram_mb": 456, "load_s": 1.92, "threads": 2}
+{"model": "zipformer-vi-30m", "dataset": "fleurs", "lang": "vi", "n": 30, "metric": "WER", "error": 10.05, "rtf": 0.0244, "p50_ms": 300, "p95_ms": 554, "avg_cores": 3.63, "model_ram_mb": 329, "load_s": 1.14, "threads": 2}
+{"model": "vietasr", "dataset": "fleurs", "lang": "vi", "n": 30, "metric": "WER", "error": 11.49, "rtf": 0.0301, "p50_ms": 369, "p95_ms": 668, "avg_cores": 3.46, "model_ram_mb": 377, "load_s": 1.54, "threads": 2}

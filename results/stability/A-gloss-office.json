@@ -1,0 +1,554 @@
+{
+  "name": "A-gloss-office",
+  "asr": {
+    "ja": "parakeet-ja",
+    "en": "sensevoice",
+    "vi": "zipformer-vi-30m"
+  },
+  "mt": {
+    "default": "hy-mt-1.8b-gloss"
+  },
+  "robustness": {
+    "asr_non_speech": [
+      {
+        "clip": "silence_10s",
+        "lang": "ja",
+        "output": "ピ。",
+        "chars": 1
+      },
+      {
+        "clip": "silence_10s",
+        "lang": "en",
+        "output": "The.",
+        "chars": 3
+      },
+      {
+        "clip": "silence_10s",
+        "lang": "vi",
+        "output": "<",
+        "chars": 0
+      },
+      {
+        "clip": "quiet_noise_10s",
+        "lang": "ja",
+        "output": "うん。",
+        "chars": 2
+      },
+      {
+        "clip": "quiet_noise_10s",
+        "lang": "en",
+        "output": "The.",
+        "chars": 3
+      },
+      {
+        "clip": "quiet_noise_10s",
+        "lang": "vi",
+        "output": "<",
+        "chars": 0
+      },
+      {
+        "clip": "loud_noise_10s",
+        "lang": "ja",
+        "output": "うん。",
+        "chars": 2
+      },
+      {
+        "clip": "loud_noise_10s",
+        "lang": "en",
+        "output": "The.",
+        "chars": 3
+      },
+      {
+        "clip": "loud_noise_10s",
+        "lang": "vi",
+        "output": "VÀ",
+        "chars": 2
+      },
+      {
+        "clip": "beep_5s",
+        "lang": "ja",
+        "output": "心の声あっ",
+        "chars": 5
+      },
+      {
+        "clip": "beep_5s",
+        "lang": "en",
+        "output": "I.",
+        "chars": 1
+      },
+      {
+        "clip": "beep_5s",
+        "lang": "vi",
+        "output": "TÔI",
+        "chars": 3
+      },
+      {
+        "clip": "hum_5s",
+        "lang": "ja",
+        "output": "うん",
+        "chars": 2
+      },
+      {
+        "clip": "hum_5s",
+        "lang": "en",
+        "output": "I.",
+        "chars": 1
+      },
+      {
+        "clip": "hum_5s",
+        "lang": "vi",
+        "output": "<",
+        "chars": 0
+      }
+    ],
+    "asr_hallucinated_clips": 1,
+    "mt_edge_cases": [
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "はい。",
+        "ref": "Yes.",
+        "output": "Yes.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "はい。",
+        "ref": "Vâng.",
+        "output": "Vâng.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "えーと、",
+        "ref": "Um,",
+        "output": "Uh…",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "えーと、",
+        "ref": "Ờ,",
+        "output": "Ừm…",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "そうですね",
+        "ref": "That's right.",
+        "output": "Yes, that’s right.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "そうですね",
+        "ref": "Đúng vậy.",
+        "output": "Đúng vậy.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "2026年9月25日午後3時",
+        "ref": "September 25, 2026, 3 p.m.",
+        "output": "3:00 p.m., September 25, 2026",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "2026年9月25日午後3時",
+        "ref": "3 giờ chiều ngày 25 tháng 9 năm 2026",
+        "output": "Ngày 25 tháng 9 năm 2026, lúc 3 giờ chiều.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "このmeetingはrescheduleしましょう",
+        "ref": "Let's reschedule this meeting.",
+        "output": "Let’s reschedule this meeting.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "このmeetingはrescheduleしましょう",
+        "ref": "Chúng ta dời lịch cuộc họp này nhé.",
+        "output": "Chúng ta hãy hoán đổi thời gian tổ chức cuộc họp này đi.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "あの、その、例の件なんですけど",
+        "ref": "Um, so, about that matter we talked about...",
+        "output": "Um, that’s related to that matter we were talking about earlier.",
+        "problems": [
+          "invented_text"
+        ]
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "あの、その、例の件なんですけど",
+        "ref": "À, ừm, về chuyện hôm trước ấy...",
+        "output": "Ừm… đó là chuyện liên quan đến việc đó mà.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "来週の月曜日は休みです。",
+        "ref": "Next Monday is a day off.",
+        "output": "Next Monday is a day off.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "来週の月曜日は休みです。",
+        "ref": "Thứ hai tuần sau được nghỉ.",
+        "output": "Thứ Hai tuần sau là ngày nghỉ.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "OK.",
+        "ref": "わかりました。",
+        "output": "オーケー。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "OK.",
+        "ref": "Được.",
+        "output": "Ừm.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "Uh-huh.",
+        "ref": "うん。",
+        "output": "うん。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "Uh-huh.",
+        "ref": "Ừ.",
+        "output": "Ừm.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "So, um, basically",
+        "ref": "それで、えーと、基本的には",
+        "output": "つまり、基本的にはそうです。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "So, um, basically",
+        "ref": "Thì, ừm, về cơ bản là",
+        "output": "Vậy, nói một cách tổng quát thì…",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "The Q3 KPI is 12.5% YoY.",
+        "ref": "第3四半期のKPIは前年比12.5%です。",
+        "output": "Q3のKPIは、前年同月比で12.5％の増加です。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "The Q3 KPI is 12.5% YoY.",
+        "ref": "KPI quý 3 tăng 12,5% so với cùng kỳ năm trước.",
+        "output": "Chỉ số KPI trong quý 3 là 12,5% so với cùng kỳ năm trước.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "We can't ship before Friday.",
+        "ref": "金曜日より前には出荷できません。",
+        "output": "金曜日までには発送できない状態です。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "We can't ship before Friday.",
+        "ref": "Chúng tôi không thể giao hàng trước thứ Sáu.",
+        "output": "Chúng tôi không thể giao hàng trước ngày thứ Sáu được.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "Dạ.",
+        "ref": "はい。",
+        "output": "はい。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "Dạ.",
+        "ref": "Yes.",
+        "output": "Yes.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "Vâng ạ",
+        "ref": "はい、そうです。",
+        "output": "はい、そうです。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "Vâng ạ",
+        "ref": "Yes.",
+        "output": "Yes.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "ờ thì",
+        "ref": "えーと",
+        "output": "えっと、そうですね。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "ờ thì",
+        "ref": "Well, um",
+        "output": "Well…",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "cuộc họp dời sang thứ năm nhé anh",
+        "ref": "会議は木曜日に変更になりますね。",
+        "output": "会議を木曜日に延期しましょう、ね。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "cuộc họp dời sang thứ năm nhé anh",
+        "ref": "The meeting's been moved to Thursday, okay?",
+        "output": "Let’s move the meeting to Thursday instead.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "Giá là 1,5 triệu đồng, không phải 15 triệu.",
+        "ref": "価格は150万ドンで、1500万ドンではありません。",
+        "output": "たった150万ドンです。15百万ドンではありません。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "Giá là 1,5 triệu đồng, không phải 15 triệu.",
+        "ref": "The price is 1.5 million dong, not 15 million.",
+        "output": "It’s 1.5 million dong, not 15 million dong.",
+        "problems": []
+      }
+    ],
+    "mt_problem_cases": 1,
+    "mt_critical_errors": 0
+  },
+  "soak": {
+    "minutes": 3.0,
+    "utterances": 19,
+    "speech_minutes_processed": 3.8,
+    "errors": 0,
+    "error_samples": [],
+    "ram_start_mb": 3488,
+    "ram_max_mb": 3560,
+    "ram_end_mb": 3560,
+    "ram_drift_mb": 46.6,
+    "ram_slope_mb_per_hour": 1434.8,
+    "e2e_p50_ms": 5468,
+    "e2e_p95_ms": 7743,
+    "e2e_p99_ms": 8364,
+    "e2e_max_ms": 8627,
+    "ram_timeline": [
+      [
+        0,
+        3488
+      ],
+      [
+        5,
+        3512
+      ],
+      [
+        10,
+        3512
+      ],
+      [
+        15,
+        3513
+      ],
+      [
+        20,
+        3513
+      ],
+      [
+        25,
+        3513
+      ],
+      [
+        30,
+        3514
+      ],
+      [
+        35,
+        3512
+      ],
+      [
+        40,
+        3512
+      ],
+      [
+        45,
+        3512
+      ],
+      [
+        50,
+        3514
+      ],
+      [
+        55,
+        3514
+      ],
+      [
+        60,
+        3513
+      ],
+      [
+        65,
+        3514
+      ],
+      [
+        70,
+        3514
+      ],
+      [
+        75,
+        3514
+      ],
+      [
+        80,
+        3514
+      ],
+      [
+        85,
+        3551
+      ],
+      [
+        90,
+        3552
+      ],
+      [
+        95,
+        3552
+      ],
+      [
+        100,
+        3554
+      ],
+      [
+        105,
+        3554
+      ],
+      [
+        110,
+        3554
+      ],
+      [
+        115,
+        3557
+      ],
+      [
+        120,
+        3557
+      ],
+      [
+        125,
+        3555
+      ],
+      [
+        130,
+        3555
+      ],
+      [
+        135,
+        3557
+      ],
+      [
+        140,
+        3558
+      ],
+      [
+        145,
+        3560
+      ],
+      [
+        150,
+        3560
+      ],
+      [
+        155,
+        3559
+      ],
+      [
+        160,
+        3559
+      ],
+      [
+        165,
+        3559
+      ],
+      [
+        170,
+        3560
+      ],
+      [
+        175,
+        3560
+      ],
+      [
+        180,
+        3560
+      ],
+      [
+        185,
+        3560
+      ]
+    ]
+  }
+}

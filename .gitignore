@@ -1,0 +1,17 @@
+.venv/
+.venv-comet/
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# large or machine-local
+data/
+models/
+dist/
+build/
+sessions/
+
+# per-utterance benchmark outputs contain dataset text (FLEURS, ReazonSpeech); the summaries are kept
+results/asr/*__*.jsonl
+results/mt/*__*.jsonl

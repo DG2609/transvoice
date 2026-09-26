@@ -1,0 +1,650 @@
+{
+  "name": "C-office",
+  "asr": {
+    "ja": "parakeet-ja",
+    "en": "sensevoice",
+    "vi": "zipformer-vi-30m"
+  },
+  "mt": {
+    "default": "qwen3.5-4b"
+  },
+  "robustness": {
+    "asr_non_speech": [
+      {
+        "clip": "silence_10s",
+        "lang": "ja",
+        "output": "ピ。",
+        "chars": 1
+      },
+      {
+        "clip": "silence_10s",
+        "lang": "en",
+        "output": "The.",
+        "chars": 3
+      },
+      {
+        "clip": "silence_10s",
+        "lang": "vi",
+        "output": "<",
+        "chars": 0
+      },
+      {
+        "clip": "quiet_noise_10s",
+        "lang": "ja",
+        "output": "うん。",
+        "chars": 2
+      },
+      {
+        "clip": "quiet_noise_10s",
+        "lang": "en",
+        "output": "The.",
+        "chars": 3
+      },
+      {
+        "clip": "quiet_noise_10s",
+        "lang": "vi",
+        "output": "<",
+        "chars": 0
+      },
+      {
+        "clip": "loud_noise_10s",
+        "lang": "ja",
+        "output": "うん。",
+        "chars": 2
+      },
+      {
+        "clip": "loud_noise_10s",
+        "lang": "en",
+        "output": "The.",
+        "chars": 3
+      },
+      {
+        "clip": "loud_noise_10s",
+        "lang": "vi",
+        "output": "VÀ",
+        "chars": 2
+      },
+      {
+        "clip": "beep_5s",
+        "lang": "ja",
+        "output": "心の声あっ",
+        "chars": 5
+      },
+      {
+        "clip": "beep_5s",
+        "lang": "en",
+        "output": "I.",
+        "chars": 1
+      },
+      {
+        "clip": "beep_5s",
+        "lang": "vi",
+        "output": "TÔI",
+        "chars": 3
+      },
+      {
+        "clip": "hum_5s",
+        "lang": "ja",
+        "output": "うん",
+        "chars": 2
+      },
+      {
+        "clip": "hum_5s",
+        "lang": "en",
+        "output": "I.",
+        "chars": 1
+      },
+      {
+        "clip": "hum_5s",
+        "lang": "vi",
+        "output": "<",
+        "chars": 0
+      }
+    ],
+    "asr_hallucinated_clips": 1,
+    "mt_edge_cases": [
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "はい。",
+        "ref": "Yes.",
+        "output": "Yes.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "はい。",
+        "ref": "Vâng.",
+        "output": "Vâng.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "えーと、",
+        "ref": "Um,",
+        "output": "Um,",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "えーと、",
+        "ref": "Ờ,",
+        "output": "Vâng,",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "そうですね",
+        "ref": "That's right.",
+        "output": "That's right.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "そうですね",
+        "ref": "Đúng vậy.",
+        "output": "Đúng vậy.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "2026年9月25日午後3時",
+        "ref": "September 25, 2026, 3 p.m.",
+        "output": "September 25, 2026, at 3:00 PM",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "2026年9月25日午後3時",
+        "ref": "3 giờ chiều ngày 25 tháng 9 năm 2026",
+        "output": "25 tháng 9 năm 2026, lúc 15 giờ chiều.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "このmeetingはrescheduleしましょう",
+        "ref": "Let's reschedule this meeting.",
+        "output": "Let's reschedule this meeting.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "このmeetingはrescheduleしましょう",
+        "ref": "Chúng ta dời lịch cuộc họp này nhé.",
+        "output": "Hãy hoãn cuộc họp này sang một thời điểm khác.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "あの、その、例の件なんですけど",
+        "ref": "Um, so, about that matter we talked about...",
+        "output": "Excuse me, about that matter...",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "あの、その、例の件なんですけど",
+        "ref": "À, ừm, về chuyện hôm trước ấy...",
+        "output": "À, à, nói về chuyện đó mà.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "en",
+        "input": "来週の月曜日は休みです。",
+        "ref": "Next Monday is a day off.",
+        "output": "Next Monday is off.",
+        "problems": []
+      },
+      {
+        "src": "ja",
+        "tgt": "vi",
+        "input": "来週の月曜日は休みです。",
+        "ref": "Thứ hai tuần sau được nghỉ.",
+        "output": "Thứ hai tuần sau là ngày nghỉ.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "OK.",
+        "ref": "わかりました。",
+        "output": "了解。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "OK.",
+        "ref": "Được.",
+        "output": "Được rồi.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "Uh-huh.",
+        "ref": "うん。",
+        "output": "うん。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "Uh-huh.",
+        "ref": "Ừ.",
+        "output": "Ừm ừ.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "So, um, basically",
+        "ref": "それで、えーと、基本的には",
+        "output": "では、まあ、基本的には",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "So, um, basically",
+        "ref": "Thì, ừm, về cơ bản là",
+        "output": "Vậy thì, ừm, cơ bản là...",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "The Q3 KPI is 12.5% YoY.",
+        "ref": "第3四半期のKPIは前年比12.5%です。",
+        "output": "第 3 四半期の KPI は、前年同期比 12.5% です。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "The Q3 KPI is 12.5% YoY.",
+        "ref": "KPI quý 3 tăng 12,5% so với cùng kỳ năm trước.",
+        "output": "Chỉ tiêu KPI quý III là 12,5% so với cùng kỳ năm trước.",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "ja",
+        "input": "We can't ship before Friday.",
+        "ref": "金曜日より前には出荷できません。",
+        "output": "金曜日までには発送できません。",
+        "problems": []
+      },
+      {
+        "src": "en",
+        "tgt": "vi",
+        "input": "We can't ship before Friday.",
+        "ref": "Chúng tôi không thể giao hàng trước thứ Sáu.",
+        "output": "Chúng tôi không thể giao hàng trước thứ Sáu.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "Dạ.",
+        "ref": "はい。",
+        "output": "はい。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "Dạ.",
+        "ref": "Yes.",
+        "output": "Yes.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "Vâng ạ",
+        "ref": "はい、そうです。",
+        "output": "はい。",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "Vâng ạ",
+        "ref": "Yes.",
+        "output": "Yes, sir/madam.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "ờ thì",
+        "ref": "えーと",
+        "output": "えーと",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "ờ thì",
+        "ref": "Well, um",
+        "output": "Well then.",
+        "problems": []
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "cuộc họp dời sang thứ năm nhé anh",
+        "ref": "会議は木曜日に変更になりますね。",
+        "output": "会議を金曜日に延期しましょうか。",
+        "problems": [
+          "critical:木曜"
+        ]
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "cuộc họp dời sang thứ năm nhé anh",
+        "ref": "The meeting's been moved to Thursday, okay?",
+        "output": "Let's reschedule the meeting to Friday, okay?",
+        "problems": [
+          "critical:Thursday"
+        ]
+      },
+      {
+        "src": "vi",
+        "tgt": "ja",
+        "input": "Giá là 1,5 triệu đồng, không phải 15 triệu.",
+        "ref": "価格は150万ドンで、1500万ドンではありません。",
+        "output": "価格は 150 万円ではなく、150 万円です。",
+        "problems": [
+          "critical:150万 / 1.5百万 / 1,5"
+        ]
+      },
+      {
+        "src": "vi",
+        "tgt": "en",
+        "input": "Giá là 1,5 triệu đồng, không phải 15 triệu.",
+        "ref": "The price is 1.5 million dong, not 15 million.",
+        "output": "The price is 1.5 million dong, not 15 million.",
+        "problems": []
+      }
+    ],
+    "mt_problem_cases": 3,
+    "mt_critical_errors": 3
+  },
+  "soak": {
+    "minutes": 5.0,
+    "utterances": 14,
+    "speech_minutes_processed": 2.8,
+    "errors": 0,
+    "error_samples": [],
+    "ram_start_mb": 5653,
+    "ram_max_mb": 5723,
+    "ram_end_mb": 5723,
+    "ram_drift_mb": 43.4,
+    "ram_slope_mb_per_hour": 933.1,
+    "e2e_p50_ms": 11364,
+    "e2e_p95_ms": 15396,
+    "e2e_p99_ms": 15698,
+    "e2e_max_ms": 15793,
+    "ram_timeline": [
+      [
+        0,
+        5653
+      ],
+      [
+        5,
+        5675
+      ],
+      [
+        10,
+        5678
+      ],
+      [
+        15,
+        5675
+      ],
+      [
+        20,
+        5678
+      ],
+      [
+        25,
+        5678
+      ],
+      [
+        30,
+        5679
+      ],
+      [
+        35,
+        5679
+      ],
+      [
+        40,
+        5679
+      ],
+      [
+        45,
+        5679
+      ],
+      [
+        50,
+        5679
+      ],
+      [
+        55,
+        5677
+      ],
+      [
+        60,
+        5680
+      ],
+      [
+        65,
+        5677
+      ],
+      [
+        70,
+        5680
+      ],
+      [
+        75,
+        5677
+      ],
+      [
+        80,
+        5680
+      ],
+      [
+        85,
+        5677
+      ],
+      [
+        90,
+        5680
+      ],
+      [
+        95,
+        5677
+      ],
+      [
+        100,
+        5680
+      ],
+      [
+        105,
+        5680
+      ],
+      [
+        110,
+        5680
+      ],
+      [
+        115,
+        5677
+      ],
+      [
+        120,
+        5680
+      ],
+      [
+        125,
+        5680
+      ],
+      [
+        130,
+        5680
+      ],
+      [
+        135,
+        5677
+      ],
+      [
+        140,
+        5680
+      ],
+      [
+        145,
+        5680
+      ],
+      [
+        150,
+        5677
+      ],
+      [
+        155,
+        5680
+      ],
+      [
+        160,
+        5677
+      ],
+      [
+        165,
+        5680
+      ],
+      [
+        170,
+        5677
+      ],
+      [
+        175,
+        5680
+      ],
+      [
+        180,
+        5677
+      ],
+      [
+        185,
+        5680
+      ],
+      [
+        190,
+        5716
+      ],
+      [
+        195,
+        5719
+      ],
+      [
+        200,
+        5719
+      ],
+      [
+        205,
+        5716
+      ],
+      [
+        210,
+        5719
+      ],
+      [
+        215,
+        5718
+      ],
+      [
+        220,
+        5721
+      ],
+      [
+        226,
+        5721
+      ],
+      [
+        231,
+        5718
+      ],
+      [
+        236,
+        5721
+      ],
+      [
+        241,
+        5720
+      ],
+      [
+        246,
+        5723
+      ],
+      [
+        251,
+        5723
+      ],
+      [
+        256,
+        5720
+      ],
+      [
+        261,
+        5723
+      ],
+      [
+        266,
+        5723
+      ],
+      [
+        271,
+        5720
+      ],
+      [
+        276,
+        5723
+      ],
+      [
+        281,
+        5723
+      ],
+      [
+        286,
+        5723
+      ],
+      [
+        291,
+        5720
+      ],
+      [
+        296,
+        5720
+      ],
+      [
+        301,
+        5723
+      ]
+    ]
+  }
+}
