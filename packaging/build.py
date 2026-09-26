@@ -20,6 +20,20 @@ IS_WIN, IS_MAC = sys.platform == "win32", sys.platform == "darwin"
 EXCLUDE = ["pandas", "pyarrow", "ctranslate2", "sentencepiece", "sacrebleu", "jiwer", "PIL", "pytest"]
 
 
+# PyInstaller copies these from the build machine. Every desktop distro ships them (libportaudio2 is listed
+# in the README), and bundling the build machine's copies would demand its glibc version on every user's PC.
+LINUX_SYSTEM_LIBS = ("libstdc++.so", "libgcc_s.so", "libmvec.so", "libasound.so", "libsystemd.so", "libX", "libxcb",
+                     "libportaudio.so", "libjack.so", "libpulse", "libsndfile.so", "libdbus", "libcap.so", "libgcrypt",
+                     "liblzma.so", "libzstd.so", "liblz4.so", "libgpg-error")
+
+
+def drop_linux_system_libs(app: Path) -> None:
+    internal = app / "_internal"
+    for f in internal.rglob("*.so*"):
+        if f.name.startswith(LINUX_SYSTEM_LIBS) and "_soundfile_data" not in f.parts and "sherpa_onnx" not in f.parts:
+            f.unlink()
+
+
 def platform_tag() -> str:
     os_name = "windows" if IS_WIN else "macos" if IS_MAC else "linux"
     arch = {"amd64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(platform.machine().lower(),
@@ -49,6 +63,8 @@ def main() -> None:
     subprocess.run(cmd + [str(ROOT / "packaging" / "entry.py")], cwd=ROOT, check=True)
 
     app = DIST / "TransVoice"
+    if sys.platform.startswith("linux"):
+        drop_linux_system_libs(app)
     for f in ("README.md", "glossary.example.json"):
         shutil.copy(ROOT / f, app / f)
     if IS_WIN:
