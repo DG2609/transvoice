@@ -58,7 +58,8 @@ Khi chạy, app dùng khoảng 3,5–4 GB RAM.
 - **macOS** không cho ứng dụng thu trực tiếp âm thanh máy. Cài **BlackHole 2ch** (miễn phí), trong *Audio MIDI Setup*
   tạo *Multi-Output Device* gồm loa + BlackHole và chọn nó làm đầu ra. TransVoice tự tìm thấy BlackHole.
   Bản build chưa được ký: lần đầu hãy chuột phải → *Open*, hoặc chạy `xattr -dr com.apple.quarantine TransVoice`.
-- **Linux** dùng PulseAudio/PipeWire: cần `pactl`/`parec` (gói `pulseaudio-utils`) và `libportaudio2`.
+- **Linux** (glibc 2.27+, ví dụ Ubuntu 18.04 trở lên) dùng PulseAudio/PipeWire. Cần các gói
+  `pulseaudio-utils libportaudio2 libgomp1`, ví dụ `sudo apt install pulseaudio-utils libportaudio2 libgomp1`.
 
 ## Cài đặt từ mã nguồn
 

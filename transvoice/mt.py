@@ -2,6 +2,7 @@
 import re
 import socket
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -105,16 +106,22 @@ PromptFn = Callable[[str, str, str], dict]
 
 class LlamaEngine:
     def __init__(self, gguf: Path, prompt: PromptFn, threads: int, ctx: int = 2048, jinja: bool = True,
-                 low_priority: bool = False):
+                 low_priority: bool = False, reuse_prefix: bool = False, extra_args: tuple[str, ...] = ()):
         self.prompt = prompt
+        # Re-translating a growing sentence repeats the same prompt prefix; the slot's KV cache can reuse it.
+        # (That cache has a fixed size, unlike the host-RAM prompt cache disabled below.)
+        self.reuse_prefix = reuse_prefix
         self.port = _free_port()
+        # The server's own log is kept (small, overwritten each run) so a failed start can say why,
+        # e.g. a missing libgomp on minimal Linux installs.
+        self.log = open(tempfile.gettempdir() + f"/transvoice-llama-{self.port}.log", "w+b")
         self.proc = subprocess.Popen(
             [str(llama_server_exe()), "-m", str(gguf), "-t", str(threads), "-c", str(ctx),
              "-np", "1", "--host", "127.0.0.1", "--port", str(self.port), "--jinja" if jinja else "--no-jinja",
              # Default host-RAM prompt cache (8 GiB) and context checkpoints make RSS grow with every
              # request; each translation is independent, so keep memory flat.
-             "--cache-ram", "0", "--ctx-checkpoints", "0"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **child_process_kwargs(low_priority),
+             "--cache-ram", "0", "--ctx-checkpoints", "0", "--log-verbosity", "2", *extra_args],
+            stdout=subprocess.DEVNULL, stderr=self.log, **child_process_kwargs(low_priority),
         )
         kill_with_parent(self.proc)
         self.pids = [self.proc.pid]
@@ -122,7 +129,10 @@ class LlamaEngine:
         deadline = time.time() + 180
         while time.time() < deadline:
             if self.proc.poll() is not None:
-                raise RuntimeError(f"llama-server exited with {self.proc.returncode} for {gguf.name}")
+                self.log.seek(0)
+                tail = self.log.read().decode("utf-8", "replace").strip().splitlines()[-3:]
+                raise RuntimeError(f"llama-server exited with {self.proc.returncode} for {gguf.name}: "
+                                   + " | ".join(tail))
             try:
                 if requests.get(f"{self.url}/health", timeout=1).status_code == 200:
                     return
@@ -133,7 +143,7 @@ class LlamaEngine:
 
     def translate(self, text: str, src: str, tgt: str) -> Translation:
         req = self.prompt(text, src, tgt)
-        common = {"temperature": 0, "repeat_penalty": 1.05, "cache_prompt": False}
+        common = {"temperature": 0, "repeat_penalty": 1.05, "cache_prompt": self.reuse_prefix}
         t0 = time.perf_counter()
         if "messages" in req:
             r = requests.post(f"{self.url}/v1/chat/completions",
@@ -163,6 +173,7 @@ class LlamaEngine:
             self.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.proc.kill()
+        self.log.close()
 
 
 # ---- prompt formats, taken from each model card ----
