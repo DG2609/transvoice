@@ -127,6 +127,27 @@ translation 3.5 s (4.3 s); COMET en→vi 0.876 / ja→vi 0.858 (0.880 / 0.857, w
 Sentences closed at an ending 18, at a pause 19, too long 2, split 1.
 Installs that already have Q4_K_M keep using it until `--download-models` fetches IQ4_NL.
 
+Per-sentence timings (`v6-iq4nl.sentences.jsonl`) then showed the whole-sentence re-recognition changing the
+text of 19 of 20 sentences and taking 0.5-1.4 s, during which the translator waits. Measured per language:
+
+| live, 4 E-cores | ja→vi COMET | en→vi COMET | ja lag p50 | en lag p50 |
+|---|---|---|---|---|
+| re-recognise ja + en (`v6-iq4nl`) | 0.858 | 0.876 | 5.3 s | 5.5 s |
+| never (`v7-norescore`) | 0.833, 6.7% bad | 0.878 | 4.2 s | 4.1 s |
+| **ja only (`v8-rescore-ja`)** | **0.858, 0% bad** | **0.878** | 5.3 s | **3.9 s** |
+
+- **Re-recognition only for Japanese (and Vietnamese, whose 30M zipformer costs almost nothing).** English WER
+  is better with it (14.7% vs 17.3%) but the translation is not: HY-MT copes with the small errors.
+  Overall final lag p50 / p90: **4.4 / 6.9 s**.
+- **Rejected: a shorter pause (0.5 s instead of 0.8 s).** Sentences closed 0.27 s earlier but the lag did not
+  move (the translator was still busy), English sentences were split more often (1.33 vs 1.2 per utterance)
+  and en→vi COMET dropped to 0.864.
+- **A pause right after a word that cannot end a sentence** ("…at the", "…雨が", "…của") must last 1.2 s
+  before the sentence is closed: the speaker is looking for a word. (FLEURS has no such hesitations, so
+  this is a unit-tested rule, not a measured one.)
+- Rejected: 4 ASR threads instead of 2 (re-recognition 580 vs 710 ms, but p90 lag 7.6 vs 6.9 s because
+  recognition then competes with translation).
+
 ## Known limitations
 
 - A one-chunk sentence shorter than 2 s right after a language switch can still be recognised in the previous

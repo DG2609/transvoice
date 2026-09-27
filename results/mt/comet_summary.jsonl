@@ -56,8 +56,16 @@
 {"engine": "live-v5-streaming-rerun", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8574, "bad_rate": 0.0}
 {"engine": "live-v5-streaming", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8801, "bad_rate": 0.0}
 {"engine": "live-v5-streaming", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8589, "bad_rate": 0.0}
+{"engine": "live-v6-asr4", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8762, "bad_rate": 0.0}
+{"engine": "live-v6-asr4", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8596, "bad_rate": 0.0}
 {"engine": "live-v6-iq4nl", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8762, "bad_rate": 0.0}
 {"engine": "live-v6-iq4nl", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8584, "bad_rate": 0.0}
+{"engine": "live-v7-gap05", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8638, "bad_rate": 0.0}
+{"engine": "live-v7-gap05", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8584, "bad_rate": 0.0}
+{"engine": "live-v7-norescore", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8784, "bad_rate": 0.0}
+{"engine": "live-v7-norescore", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8334, "bad_rate": 6.7}
+{"engine": "live-v8-rescore-ja", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8784, "bad_rate": 0.0}
+{"engine": "live-v8-rescore-ja", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8584, "bad_rate": 0.0}
 {"engine": "nllb-1.3b", "src": "en", "tgt": "ja", "n": 100, "comet": 0.8879, "bad_rate": 6.0}
 {"engine": "nllb-1.3b", "src": "en", "tgt": "vi", "n": 100, "comet": 0.8815, "bad_rate": 4.0}
 {"engine": "nllb-1.3b", "src": "ja", "tgt": "en", "n": 100, "comet": 0.8777, "bad_rate": 0.0}

@@ -167,7 +167,11 @@ Final subtitles only. Lag = time from the speaker's last chunk to the final tran
 | v4-early-rescore | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8578 | en:0.0 ja:0.0 | 6868 | 10791 |
 | v5-streaming-rerun | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8574 | en:0.0 ja:0.0 | 6153 | 9500 |
 | v5-streaming | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8801 ja→vi:0.8589 | en:0.0 ja:0.0 | 10186 | 20047 |
+| v6-asr4 | 12,13,14,15 | True | True | ja:12.52 en:14.73 | en→vi:0.8762 ja→vi:0.8596 | en:0.0 ja:0.0 | 5386 | 7582 |
 | v6-iq4nl | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8762 ja→vi:0.8584 | en:0.0 ja:0.0 | 5351 | 6879 |
+| v7-gap05 | 12,13,14,15 | True | True | ja:9.36 en:15.3 | en→vi:0.8638 ja→vi:0.8584 | en:0.0 ja:0.0 | 5358 | 7505 |
+| v7-norescore | 12,13,14,15 | False | True | ja:9.86 en:17.28 | en→vi:0.8784 ja→vi:0.8334 | en:0.0 ja:6.7 | 4199 | 6425 |
+| v8-rescore-ja | 12,13,14,15 | True | True | ja:9.36 en:17.28 | en→vi:0.8784 ja→vi:0.8584 | en:0.0 ja:0.0 | 4428 | 6919 |
 
 ## Stability
 

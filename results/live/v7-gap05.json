@@ -1,0 +1,42 @@
+{
+  "name": "v7-gap05",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "mt_model": "HY-MT1.5-1.8B.i1-IQ4_NL.gguf",
+  "mt_threads": 4,
+  "asr_threads": 2,
+  "set": [
+    "sentence_gap_s=0.5",
+    "sentence_gap_open_s=1.2"
+  ],
+  "asr_error": {
+    "ja": 9.36,
+    "en": 15.3
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 1.33
+  },
+  "drafts_per_sentence": {
+    "ja": 0.73,
+    "en": 0.8
+  },
+  "final_lag_p50_ms": 5358,
+  "final_lag_p90_ms": 7505,
+  "stages_ms": {
+    "close_ms": 1019,
+    "final_start_ms": 1806,
+    "final_first_ms": 3343,
+    "final_mt_ms": 3552
+  },
+  "final_needed_extra_mt": "39/42",
+  "close_reasons": {
+    "end": 19,
+    "max": 1,
+    "pause": 21,
+    "split": 1
+  },
+  "machine_cpu_avg_pct": 21
+}

@@ -62,14 +62,21 @@ class Settings:
     chunk_soft_s: float = 2.5
     chunk_hard_s: float = 5.0
     sentence_gap_s: float = 0.8  # extra pause after a chunk that closes the sentence
+    # ... when the text so far ends in a word that cannot end a sentence ("the", "and", "が", "của"):
+    # the speaker is hesitating, not finished.
+    sentence_gap_open_s: float = 1.2
     sentence_max_s: float = 12.0  # close long sentences so the final re-translation stays fast
     drafts: bool = True  # translate unfinished sentences (live feel); False = only finished sentences
     # When a sentence ends, recognise its whole audio again: chunk cuts garble words at the joins
     # ("一番一番は", "金金属"), and the final translation should not inherit that.
     rescore_final: bool = True
+    # Only where it pays off: Japanese COMET 0.833 -> 0.858 and no bad translations; English WER improves but
+    # the translation does not (HY-MT copes with the small errors), while the final comes 1.5 s later.
+    # Vietnamese (30M-parameter zipformer) costs almost nothing to re-run.
+    rescore_langs: tuple[str, ...] = ("ja", "vi")
     rescore_max_s: float = 10.0  # longer sentences cost too much ASR time on office CPUs (p90 lag 8 -> 15 s)
     # Faster re-translation: reuse the KV cache of the shared prompt prefix and draft tokens with n-gram
-    # lookup. ~18% faster on 4 E-cores, but outputs are not bit-identical to the plain run.
+    # lookup (FAST_MT_ARGS). With IQ4_NL weights the output is identical to plain decoding.
     mt_fast: bool = True
     lid_min_seconds: float = 1.0  # shorter first chunks reuse the last detected language
 
@@ -149,6 +156,22 @@ def is_noise(text: str, lang: str, audio_s: float) -> bool:
         return True
     size = len(n) if lang == "ja" else len(n.split())
     return audio_s < 0.8 and size <= (2 if lang == "ja" else 1)
+
+
+# Words a sentence cannot end with: after them the speaker is only pausing.
+_OPEN_END = {
+    "en": re.compile(r"\b(the|a|an|and|or|but|of|to|in|on|at|for|with|from|by|as|than|that|which|who|whose|"
+                     r"because|so|if|when|while|is|are|was|were|be|been|has|have|had|will|would|can|could|"
+                     r"my|your|our|their|his|her|its|this|these|those|very|not|about|into)\W*$", re.I),
+    "ja": re.compile(r"(が|けど|けれど|て|で|し|から|ので|のに|と|は|を|に|へ|も|の|や|って|たり|ながら|ば|、)\W*$"),
+    "vi": re.compile(r"(^|\s)(và|của|là|thì|mà|những|các|để|với|cho|nhưng|vì|nên|khi|nếu|rằng|một|trong|ở|từ|"
+                     r"đến|được|bị|có|không|rất)\W*$", re.I),
+}
+
+
+def open_ended(text: str, lang: str) -> bool:
+    rx = _OPEN_END.get(lang)
+    return bool(rx and rx.search(text.strip()))
 
 
 def ends_sentence(text: str, lang: str) -> bool:
@@ -524,7 +547,8 @@ class Engine:
         s.timings["close_ms"] = round(1000 * (time.time() - s.last_chunk_at))  # pause detection
         s.timings["close"] = reason
         audio = self.sentence_audio.get(s.id, [])
-        if (self.s.rescore_final and not s.shared_audio and len(s.chunks) >= 2 and len(audio) >= 2
+        if (self.s.rescore_final and s.lang in self.s.rescore_langs and not s.shared_audio
+                and len(s.chunks) >= 2 and len(audio) >= 2
                 and sum(len(a) for a in audio) <= self.s.rescore_max_s * SAMPLE_RATE
                 and not self.queued[channel]):  # when ASR is already behind, keep up instead
             s.rescoring = True  # the translator waits for the whole-sentence text
@@ -566,13 +590,14 @@ class Engine:
                 if self.queued[ch]:
                     continue  # chunks still waiting for ASR may continue this sentence (slow CPU)
                 cv = self.vads.get(ch)
+                gap = self.s.sentence_gap_open_s if open_ended(s.text, s.lang) else self.s.sentence_gap_s
                 if cv is not None:
                     # Real audio: trust the VAD. A cut at the fading end of a sentence is marked "forced",
                     # but if no speech follows, the pause is real.
                     quiet_for = now - max(s.last_chunk_at, cv.last_speech_at)
-                    pause = not cv.speaking and quiet_for >= self.s.sentence_gap_s
+                    pause = not cv.speaking and quiet_for >= gap
                 else:
-                    pause = not s.last_forced and now - s.last_chunk_at >= self.s.sentence_gap_s
+                    pause = not s.last_forced and now - s.last_chunk_at >= gap
                 if pause or now - s.last_chunk_at >= self.s.chunk_hard_s + 3:  # safety net
                     self._close(ch, "pause" if pause else "timeout")
 

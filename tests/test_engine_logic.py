@@ -3,7 +3,8 @@ import time
 
 import numpy as np
 
-from transvoice.engine import Engine, Settings, _ChannelVad, ends_sentence, is_noise, split_sentences
+from transvoice.engine import (Engine, Settings, _ChannelVad, ends_sentence, is_noise, open_ended,
+                               split_sentences)
 from transvoice.mt import Translation, TranslationCancelled
 
 
@@ -281,6 +282,14 @@ def test_rescore_can_be_disabled():
     assert finals[0].text == "日本は一番一番新鮮な魚です"
 
 
+def test_english_is_not_recognised_twice():
+    # English finals keep the chunk text: a second pass would not change the translation, only delay it.
+    chunks = ["The meeting tomorrow", "starts at nine."]
+    _, _, finals = _run(chunks, forced=[True, False], lang="en", gap=0.1)
+    assert finals[0].text == "The meeting tomorrow starts at nine."
+    assert "rescore_ms" not in finals[0].timings
+
+
 def test_stale_draft_is_cancelled_when_the_sentence_ends():
     # A slow draft of the first chunk is running when the sentence closes with more text: it must be
     # abandoned, and the final translation of the whole sentence must still arrive.
@@ -311,6 +320,21 @@ def test_slow_translation_skips_stale_drafts():
 def test_pause_closes_sentence_without_punctuation():
     _, _, finals = _run(["hôm nay trời đẹp"], forced=[False], lang="vi", my_lang="ja")
     assert finals[0].text == "hôm nay trời đẹp" and finals[0].closed
+
+
+def test_open_ended_text():
+    assert open_ended("I went to the", "en") and open_ended("because", "en")
+    assert not open_ended("I went to the store", "en") and not open_ended("another", "en")
+    assert open_ended("昨日は雨が", "ja") and not open_ended("明日行きます", "ja")
+    assert open_ended("tôi muốn đi đến", "vi") and not open_ended("tôi đi học rồi", "vi")
+
+
+def test_hesitation_after_an_open_word_waits_longer():
+    # "... to the" + pause: the speaker is looking for a word; a pause that would end a finished sentence
+    # must not cut this one, so the next chunk still joins it.
+    chunks = ["I would like to book a table at the", "restaurant downtown."]
+    _, _, finals = _run(chunks, forced=[False, False], lang="en", gap=0.5, sentence_gap_open_s=1.5)
+    assert len(finals) == 1 and finals[0].text == " ".join(chunks)
 
 
 def test_sliver_segments_are_ignored():
