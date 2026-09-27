@@ -528,6 +528,7 @@ class Engine:
                 s.version += 1
             s.rescoring = False
             s.timings.update(rescore_ms=round(1000 * (time.perf_counter() - t0)), rescore_changed=changed)
+            self._cancel_stale_draft(s)
             snap = s.snapshot()
             self.lock.notify_all()
         self.on_event("heard", snap)
@@ -560,10 +561,19 @@ class Engine:
         self.lock.notify_all()
 
     def _cancel_stale_draft(self, s: Sentence) -> None:
-        """Caller holds the lock. The sentence just ended; if the translator is busy with a draft of an older
-        text (or of text the whole-sentence pass will replace), stop it so the final starts right away."""
+        """Caller holds the lock. `s` just ended, or its whole-sentence text is ready: its final translation
+        goes first. Stop a draft of an older text of `s` (or of text the whole-sentence pass will replace),
+        and, once the final can start, a draft of a later sentence: that one is redone afterwards with more
+        text anyway, while the final would otherwise wait seconds behind it (real speech: the next sentence
+        starts while this one is being re-recognised)."""
         job = self.mt_job
-        if job and job[0] == s.id and job[1] and (s.rescoring or job[2] != s.version):
+        if not job or not job[1]:
+            return  # idle, or already translating a final
+        if job[0] == s.id:
+            stale = s.rescoring or job[2] != s.version
+        else:
+            stale = s.closed and not s.rescoring and s.needs_translation and job[0] > s.id
+        if stale:
             job[3].set()
 
     def _run_rescores(self) -> None:
@@ -579,6 +589,7 @@ class Engine:
             else:
                 with self.lock:
                     s.rescoring = False
+                    self._cancel_stale_draft(s)
                     self.lock.notify_all()
 
     def _close_quiet_sentences(self) -> None:

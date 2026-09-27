@@ -299,6 +299,19 @@ def test_stale_draft_is_cancelled_when_the_sentence_ends():
     assert finals[0].translation == "<明日の会議には参加できないと思います>"
 
 
+def test_final_is_not_stuck_behind_the_next_sentences_draft():
+    # Real speech: sentence A ends when the next chunk starts sentence B. B's (slow) draft starts while A is
+    # re-recognised; A's final must not wait for that draft.
+    chunks = ["明日は雨", "ですね", "それでも行きます"]
+    e, events, finals = _run(chunks, forced=[True, True, True], mt_delay=1.0, asr_delay=0.3)
+    a = finals[0]
+    assert a.text == "明日は雨ですね"
+    assert "それでも行きます" in e.mt.cancelled
+    done = [(p.id, p.final) for k, p in events if k == "translated"]
+    first_b = next((i for i, (sid, _) in enumerate(done) if sid != a.id), len(done))
+    assert done.index((a.id, True)) < first_b
+
+
 def test_partial_translation_streams_and_never_shrinks_a_draft():
     chunks = ["明日の会議には", "参加できないと思います"]
     e, events, finals = _run(chunks, forced=[True, False], mt_delay=0.6, gap=0.8, rescore_final=False)
