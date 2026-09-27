@@ -44,6 +44,8 @@
 {"engine": "live-mt-fast", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8614, "bad_rate": 6.7}
 {"engine": "live-no-rescore", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8043, "bad_rate": 6.7}
 {"engine": "live-no-rescore", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8426, "bad_rate": 0.0}
+{"engine": "live-v10-max8", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8734, "bad_rate": 0.0}
+{"engine": "live-v10-max8", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8572, "bad_rate": 0.0}
 {"engine": "live-v2", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8776, "bad_rate": 0.0}
 {"engine": "live-v2", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8583, "bad_rate": 0.0}
 {"engine": "live-v3-stages", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8799, "bad_rate": 0.0}
@@ -66,6 +68,8 @@
 {"engine": "live-v7-norescore", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8334, "bad_rate": 6.7}
 {"engine": "live-v8-rescore-ja", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8784, "bad_rate": 0.0}
 {"engine": "live-v8-rescore-ja", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8584, "bad_rate": 0.0}
+{"engine": "live-v9-preempt", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8784, "bad_rate": 0.0}
+{"engine": "live-v9-preempt", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8584, "bad_rate": 0.0}
 {"engine": "nllb-1.3b", "src": "en", "tgt": "ja", "n": 100, "comet": 0.8879, "bad_rate": 6.0}
 {"engine": "nllb-1.3b", "src": "en", "tgt": "vi", "n": 100, "comet": 0.8815, "bad_rate": 4.0}
 {"engine": "nllb-1.3b", "src": "ja", "tgt": "en", "n": 100, "comet": 0.8777, "bad_rate": 0.0}

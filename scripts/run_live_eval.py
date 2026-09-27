@@ -65,7 +65,7 @@ def main() -> None:
         overrides["asr_threads"] = args.asr_threads
     for item in args.set:
         key, value = item.split("=", 1)
-        overrides[key] = float(value)
+        overrides[key] = int(value) if value.isdigit() else float(value)
     settings = Settings(my_lang=args.me, their_lang="auto", rescore_final=not args.no_rescore,
                         drafts=not args.no_drafts, **overrides)
     engine = Engine(settings, on_event)
@@ -142,6 +142,7 @@ def main() -> None:
         "final_needed_extra_mt": f"{extra_mt}/{len(lags)}",
         "close_reasons": {r: sum(d.get("close") == r for d in detail) for r in sorted({d.get("close") for d in detail} - {None})},
         "machine_cpu_avg_pct": round(statistics.mean(load)) if load else None,
+        "mt_stats": {k: round(v, 1) for k, v in sorted(engine.mt_stats.items())},
     }
     (ROOT / "results" / "live").mkdir(parents=True, exist_ok=True)
     (ROOT / "results" / "live" / f"{args.name}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

@@ -148,6 +148,28 @@ text of 19 of 20 sentences and taking 0.5-1.4 s, during which the translator wai
 - Rejected: 4 ASR threads instead of 2 (re-recognition 580 vs 710 ms, but p90 lag 7.6 vs 6.9 s because
   recognition then competes with translation).
 
+### Real conversation (replay of a Japanese street interview, `.cache/youtube_run2.wav`, 4 E-cores)
+
+FLEURS is read speech with pauses between sentences; a street interview is continuous, with fillers and run-on
+sentences. `scripts/replay.py` plays a recording through the app in real time with setting overrides and
+prints the translator's time split (drafts / finals / cancelled work).
+
+| 27 sentences | lag p50 | p90 | max |
+|---|---|---|---|
+| v0.3.0 as tagged | 6.1 s | 12.0 s | 13.3 s |
+| **+ a final cancels a later sentence's draft** | 6.1 s | **9.9 s** | **11.3 s** |
+| sentence cap 8 s instead of 12 s (rejected; FLEURS en→vi COMET 0.873 vs 0.878) | 6.4 s | 9.7 s | 12.1 s |
+| 3 translation threads instead of 4 (no clear change) | 6.1 s | 9.4 s | 12.0 s |
+
+- **A final translation cancels a running draft of a later sentence.** In continuous speech the next sentence
+  starts while the finished one is being re-recognised; the translator began the new sentence's draft and the
+  final then waited 3-4 s behind it.
+- The translator is busy only ~25% of this recording (drafts 72 s, finals 82 s, cancelled 25 s of 704 s); it
+  saturates only during long runs of speech.
+- The largest remaining delay: a Japanese sentence that ends in a polite form exactly at a chunk cut
+  ("…ですね" | next words) is only closed when the next chunk has been recognised (3-6 s later), because
+  "…ですけど", "…ますが" would continue it. Its full translation is already on screen as a grey draft.
+
 ## Known limitations
 
 - A one-chunk sentence shorter than 2 s right after a language switch can still be recognised in the previous

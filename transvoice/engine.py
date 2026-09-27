@@ -296,6 +296,8 @@ class Engine:
         self.queued: collections.Counter = collections.Counter()  # chunks waiting for ASR, per channel
         self.pending: dict[int, Sentence] = {}  # sentences that still need translation or a final event
         self.mt_busy = False
+        # Where the translator's time goes (seconds, counts): drafts, finals, work thrown away by a cancel.
+        self.mt_stats: collections.Counter = collections.Counter()
         self.threads: list[threading.Thread] = []
 
     # ---- lifecycle ----
@@ -661,6 +663,7 @@ class Engine:
                     job.timings["final_start_ms"] = round(1000 * (time.time() - job.last_chunk_at))
                 self.mt_job = (job.id, not job.closed, version, cancel)
             tr, failed = None, False
+            t0 = time.perf_counter()
             try:
                 tr = self.mt.translate(text, lang, target, cancel=cancel,
                                        on_partial=self._partial_sink(job)) if needs else None
@@ -673,6 +676,10 @@ class Engine:
                 self.mt_busy = False
                 self.mt_job = None
                 job.partial = None
+                if needs:
+                    kind = "cancelled" if cancel.is_set() and tr is None else "draft" if not job.closed else "final"
+                    self.mt_stats[kind] += 1
+                    self.mt_stats[kind + "_s"] += time.perf_counter() - t0
                 if cancel.is_set() and tr is None:
                     continue  # no event: the final translation is next in line
                 if tr is not None and version >= job.translated_version:
