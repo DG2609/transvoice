@@ -74,12 +74,13 @@ class Sentence:
     last_forced: bool = False  # the last chunk was cut mid-speech, so the speaker is still talking
     lang_confirmed: bool = True  # False while the language is a guess from too little audio
     shared_audio: bool = False  # split inside a chunk: its audio also holds part of a neighbouring sentence
-    rescoring: bool = False  # closed, whole-sentence recognition still running
+    rescoring: bool = False  # whole-sentence recognition running; the translator waits for it
     audio_s: float = 0.0
     closed: bool = False
     version: int = 0  # bumps whenever a chunk is appended
     translated_version: int = 0
     translation: str | None = None
+    partial: str | None = None  # translation being generated right now (streamed), shown before it completes
     timings: dict = field(default_factory=dict)
 
     @property
@@ -238,7 +239,8 @@ class _ChannelVad:
 class Engine:
     def __init__(self, settings: Settings, on_event: Callable[[str, object], None]):
         self.s = settings
-        # Events: ("status", str) | ("heard", Sentence) | ("translated", Sentence) | ("error", str).
+        # Events: ("status", str) | ("heard", Sentence) | ("partial", Sentence) | ("translated", Sentence)
+        # | ("error", str).
         # Sentences are snapshots; "translated" with .final=True happens exactly once per sentence.
         self.on_event = on_event
         self.audio_q: queue.Queue = queue.Queue()
@@ -480,6 +482,18 @@ class Engine:
         for snap in snaps:
             self.on_event("heard", snap)
 
+    def _rescore(self, s: Sentence, audio: list[np.ndarray]) -> None:
+        """ASR thread, no lock held: replace the chunk-by-chunk text with one pass over the whole audio."""
+        text = asr_text_for_mt(self.asr[s.lang].transcribe(np.concatenate(audio)))
+        with self.lock:
+            if text and not is_noise(text, s.lang, s.audio_s) and text != s.text:
+                s.chunks = [text]
+                s.version += 1
+            s.rescoring = False
+            snap = s.snapshot()
+            self.lock.notify_all()
+        self.on_event("heard", snap)
+
     def _new_sentence(self, channel: str, lang: str, started_at: float) -> Sentence:
         """Caller holds the lock."""
         s = Sentence(next(self.ids), channel, lang, self._target(channel), started_at=started_at)
@@ -492,6 +506,7 @@ class Engine:
         if s is None:
             return
         s.closed = True
+        s.timings["close_ms"] = round(1000 * (time.time() - s.last_chunk_at))  # pause detection
         audio = self.sentence_audio.get(s.id, [])
         if (self.s.rescore_final and not s.shared_audio and len(s.chunks) >= 2 and len(audio) >= 2
                 and sum(len(a) for a in audio) <= self.s.rescore_max_s * SAMPLE_RATE
@@ -519,15 +534,12 @@ class Engine:
                     return
                 s = self.to_rescore.pop(0)
                 audio = self.sentence_audio.pop(s.id, [])
-            text = asr_text_for_mt(self.asr[s.lang].transcribe(np.concatenate(audio))) if audio else ""
-            with self.lock:
-                if text and not is_noise(text, s.lang, s.audio_s) and text != s.text:
-                    s.chunks = [text]
-                    s.version += 1
-                s.rescoring = False
-                snap = s.snapshot()
-                self.lock.notify_all()
-            self.on_event("heard", snap)
+            if audio:
+                self._rescore(s, audio)
+            else:
+                with self.lock:
+                    s.rescoring = False
+                    self.lock.notify_all()
 
     def _close_quiet_sentences(self) -> None:
         """A sentence ends at a real pause: its last chunk ended in silence and nobody has spoken since.
@@ -561,6 +573,27 @@ class Engine:
                 return s  # needs its final event only
         return None
 
+    def _partial_sink(self, job: Sentence) -> Callable[[str], None]:
+        """Streamed words of a translation -> "partial" events, at most every 100 ms. A partial never
+        replaces a longer draft that is already on screen (no shrinking subtitles)."""
+        last = [0.0]
+
+        def sink(text: str) -> None:
+            now = time.time()
+            if now - last[0] < 0.1:
+                return
+            with self.lock:
+                if job.translation and len(text) < len(job.translation):
+                    return
+                job.partial = text
+                if job.closed and "final_first_ms" not in job.timings:
+                    job.timings["final_first_ms"] = round(1000 * (now - job.last_chunk_at))
+                snap = job.snapshot()
+            last[0] = now
+            self.on_event("partial", snap)
+
+        return sink
+
     def _mt_loop(self) -> None:
         while not self.stop_flag.is_set():
             with self.lock:
@@ -572,10 +605,13 @@ class Engine:
                 needs = job.needs_translation
                 self.mt_busy = needs
                 cancel = threading.Event()
+                if job.closed and needs:  # final translation: how long it waited after the close
+                    job.timings["final_start_ms"] = round(1000 * (time.time() - job.last_chunk_at))
                 self.mt_job = (job.id, not job.closed, version, cancel)
             tr, failed = None, False
             try:
-                tr = self.mt.translate(text, lang, target, cancel=cancel) if needs else None
+                tr = self.mt.translate(text, lang, target, cancel=cancel,
+                                       on_partial=self._partial_sink(job)) if needs else None
             except TranslationCancelled:
                 tr = None  # superseded by the final version of this sentence
             except Exception as e:  # noqa: BLE001 - report, then move on instead of retrying forever
@@ -584,12 +620,15 @@ class Engine:
             with self.lock:
                 self.mt_busy = False
                 self.mt_job = None
+                job.partial = None
                 if cancel.is_set() and tr is None:
                     continue  # no event: the final translation is next in line
                 if tr is not None and version >= job.translated_version:
                     job.translation = tr.text
                     job.translated_version = version
                     job.timings["mt_ms"] = round(1000 * tr.latency_s)
+                    if job.closed:
+                        job.timings["final_mt_ms"] = round(1000 * tr.latency_s)
                 elif failed:
                     job.translated_version = version
                 job.timings["lag_ms"] = round(1000 * (time.time() - job.last_chunk_at))

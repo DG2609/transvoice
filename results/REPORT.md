@@ -150,7 +150,11 @@ Final subtitles only. Lag = time from the speaker's last chunk to the final tran
 | mt-fast | 12,13,14,15 | True | True | ja:7.84 en:16.43 | en→vi:0.8125 ja→vi:0.8614 | en:6.7 ja:6.7 | 4250 | 12488 |
 | no-rescore | 12,13,14,15 | False | False | ja:9.86 en:17.28 | en→vi:0.8043 ja→vi:0.8426 | en:6.7 ja:0.0 | 4404 | 8085 |
 | v2 | 12,13,14,15 | True | False | ja:9.36 en:14.73 | en→vi:0.8776 ja→vi:0.8583 | en:0.0 ja:0.0 | 8474 | 15031 |
+| v3-stages | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8574 | en:0.0 ja:0.0 | 6104 | 9310 |
 | v3 | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8574 | en:0.0 ja:0.0 | 6164 | 9140 |
+| v4-early-rescore | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8578 | en:0.0 ja:0.0 | 6868 | 10791 |
+| v5-streaming-rerun | 12,13,14,15 | True | True | ja:9.36 en:14.73 |  |  | 6153 | 9500 |
+| v5-streaming | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8801 ja→vi:0.8589 | en:0.0 ja:0.0 | 10186 | 20047 |
 
 ## Stability
 

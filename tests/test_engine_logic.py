@@ -188,15 +188,19 @@ class FakeMt:
         self.delay, self.calls, self.cancelled = delay, [], []
         self.pids = []
 
-    def translate(self, text, src, tgt, cancel=None):
+    def translate(self, text, src, tgt, cancel=None, on_partial=None):
         self.calls.append(text)
+        full = f"<{text}>"
         deadline = time.time() + self.delay
         while time.time() < deadline:
             if cancel is not None and cancel.is_set():
                 self.cancelled.append(text)
                 raise TranslationCancelled()
+            if on_partial is not None:  # stream the translation in growing prefixes
+                done = 1 - (deadline - time.time()) / self.delay
+                on_partial(full[: max(1, int(len(full) * done))])
             time.sleep(0.01)
-        return Translation(f"<{text}>", self.delay)
+        return Translation(full, self.delay)
 
     def close(self):
         pass
@@ -284,6 +288,17 @@ def test_stale_draft_is_cancelled_when_the_sentence_ends():
     e, events, finals = _run(chunks, forced=[True, False], mt_delay=1.0, gap=0.2, rescore_final=False)
     assert e.mt.cancelled == ["明日の会議には"]
     assert finals[0].translation == "<明日の会議には参加できないと思います>"
+
+
+def test_partial_translation_streams_and_never_shrinks_a_draft():
+    chunks = ["明日の会議には", "参加できないと思います"]
+    e, events, finals = _run(chunks, forced=[True, False], mt_delay=0.6, gap=0.8, rescore_final=False)
+    partials = [p for k, p in events if k == "partial"]
+    assert partials, "a slow translation should stream partial text"
+    for p in partials:
+        assert p.translation is None or len(p.partial) >= len(p.translation)
+    assert finals[0].partial is None and finals[0].translation == "<明日の会議には参加できないと思います>"
+    assert "final_first_ms" in finals[0].timings
 
 
 def test_slow_translation_skips_stale_drafts():

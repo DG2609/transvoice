@@ -1,0 +1,28 @@
+{
+  "name": "v5-streaming",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "asr_error": {
+    "ja": 9.36,
+    "en": 14.73
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.05,
+    "en": 0.56
+  },
+  "final_lag_p50_ms": 10186,
+  "final_lag_p90_ms": 20047,
+  "stages_ms": {
+    "close_ms": 1272,
+    "final_start_ms": 2410,
+    "final_first_ms": 3968,
+    "final_mt_ms": 7088
+  },
+  "final_needed_extra_mt": "40/40"
+}

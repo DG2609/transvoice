@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np  # noqa: E402
+import psutil  # noqa: E402
 
 from bench.data import ROOT, fleurs_parallel, fleurs_utterances  # noqa: E402
 from bench.metrics import asr_error_rate, translation_flags  # noqa: E402
@@ -59,6 +60,15 @@ def main() -> None:
     engine = Engine(settings, on_event)
     engine.start()
 
+    # Load from other programs skews the timings on a shared machine: sample the whole machine's CPU use.
+    load, stop_load = [], threading.Event()
+
+    def sample_load() -> None:
+        while not stop_load.is_set():
+            load.append(psutil.cpu_percent(interval=1.0))
+
+    threading.Thread(target=sample_load, daemon=True).start()
+
     sents = fleurs_parallel(args.n, seed=7)
     utts = {lang: fleurs_utterances(lang) for lang in args.sources.split(",")}
     windows = []  # (lang, sentence dict, start, end) in wall-clock time
@@ -74,14 +84,20 @@ def main() -> None:
     engine.flush()
     engine.wait_idle()
     engine.stop()
+    stop_load.set()
 
     out_rows, per_lang = {}, {}
-    lags = []
+    lags, stages, extra_mt = [], {"close_ms": [], "final_start_ms": [], "final_first_ms": [], "final_mt_ms": []}, 0
     for lang, s, start, end in windows:
         mine = [(t, f) for t, f in finals if start - 0.5 <= f.started_at <= end + 0.5]
         text = ("" if lang == "ja" else " ").join(f.text for _, f in mine)
         translation = " ".join(f.translation or "" for _, f in mine).strip()
         lags += [f.timings.get("lag_ms", 0) for _, f in mine if f.translation]
+        for _, f in mine:
+            for k in stages:
+                if k in f.timings:
+                    stages[k].append(f.timings[k])
+            extra_mt += "final_mt_ms" in f.timings  # the final needed a translation after the sentence closed
         per_lang.setdefault(lang, {"refs": [], "hyps": [], "sentences": 0, "drafts": 0})
         pl = per_lang[lang]
         pl["refs"].append(s[lang])
@@ -106,6 +122,10 @@ def main() -> None:
         "drafts_per_sentence": {l: round(v["drafts"] / max(1, v["sentences"]), 2) for l, v in per_lang.items()},
         "final_lag_p50_ms": round(statistics.median(lags)) if lags else None,
         "final_lag_p90_ms": round(float(np.percentile(lags, 90))) if lags else None,
+        # where the final lag goes (medians): pause detection, waiting for the translator, translating
+        "stages_ms": {k: round(statistics.median(v)) for k, v in stages.items() if v},
+        "final_needed_extra_mt": f"{extra_mt}/{len(lags)}",
+        "machine_cpu_avg_pct": round(statistics.mean(load)) if load else None,
     }
     (ROOT / "results" / "live").mkdir(parents=True, exist_ok=True)
     (ROOT / "results" / "live" / f"{args.name}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

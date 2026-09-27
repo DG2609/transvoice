@@ -147,14 +147,17 @@ class LlamaEngine:
             time.sleep(0.5)
         raise TimeoutError("llama-server did not become healthy")
 
-    def translate(self, text: str, src: str, tgt: str, cancel: threading.Event | None = None) -> Translation:
+    def translate(self, text: str, src: str, tgt: str, cancel: threading.Event | None = None,
+                  on_partial: Callable[[str], None] | None = None) -> Translation:
         """With `cancel`, the answer is streamed and abandoned as soon as `cancel` is set: closing the
-        connection makes llama-server stop generating, so a stale draft does not delay the next job."""
+        connection makes llama-server stop generating, so a stale draft does not delay the next job.
+        `on_partial` receives the text generated so far (streamed mode only), so subtitles can grow word
+        by word instead of appearing only when the whole sentence is translated."""
         req = self.prompt(text, src, tgt)
         common = {"temperature": 0, "repeat_penalty": 1.05, "cache_prompt": self.reuse_prefix}
         t0 = time.perf_counter()
         if cancel is not None:
-            out, n = self._stream(req, common, cancel)
+            out, n = self._stream(req, common, cancel, on_partial)
         elif "messages" in req:
             r = requests.post(f"{self.url}/v1/chat/completions",
                               json={"messages": req["messages"], "max_tokens": 384, "stop": req.get("stop", []),
@@ -177,7 +180,8 @@ class LlamaEngine:
             out = out.split("\n\n", 1)[0].strip()
         return Translation(out, time.perf_counter() - t0, n)
 
-    def _stream(self, req: dict, common: dict, cancel: threading.Event) -> tuple[str, int]:
+    def _stream(self, req: dict, common: dict, cancel: threading.Event,
+                on_partial: Callable[[str], None] | None) -> tuple[str, int]:
         chat = "messages" in req
         if chat:
             url = f"{self.url}/v1/chat/completions"
@@ -205,6 +209,8 @@ class LlamaEngine:
                     parts.append(obj.get("content", ""))
                     if obj.get("stop"):
                         break
+                if on_partial is not None and parts[-1]:
+                    on_partial("".join(parts).split("\n\n", 1)[0].strip())
         return "".join(parts), len(parts)
 
     def close(self) -> None:

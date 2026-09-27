@@ -34,8 +34,14 @@
 {"engine": "live-no-rescore", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8426, "bad_rate": 0.0}
 {"engine": "live-v2", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8776, "bad_rate": 0.0}
 {"engine": "live-v2", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8583, "bad_rate": 0.0}
+{"engine": "live-v3-stages", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8799, "bad_rate": 0.0}
+{"engine": "live-v3-stages", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8574, "bad_rate": 0.0}
 {"engine": "live-v3", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8799, "bad_rate": 0.0}
 {"engine": "live-v3", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8574, "bad_rate": 0.0}
+{"engine": "live-v4-early-rescore", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8799, "bad_rate": 0.0}
+{"engine": "live-v4-early-rescore", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8578, "bad_rate": 0.0}
+{"engine": "live-v5-streaming", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8801, "bad_rate": 0.0}
+{"engine": "live-v5-streaming", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8589, "bad_rate": 0.0}
 {"engine": "nllb-1.3b", "src": "en", "tgt": "ja", "n": 100, "comet": 0.8879, "bad_rate": 6.0}
 {"engine": "nllb-1.3b", "src": "en", "tgt": "vi", "n": 100, "comet": 0.8815, "bad_rate": 4.0}
 {"engine": "nllb-1.3b", "src": "ja", "tgt": "en", "n": 100, "comet": 0.8777, "bad_rate": 0.0}

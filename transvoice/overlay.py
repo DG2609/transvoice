@@ -178,6 +178,8 @@ class Overlay:
         # Drafts (sentence still growing, or translated from fewer chunks than heard) are grey; final is white.
         if u.target == u.lang:
             tr.configure(text=u.text, fg=FG if u.closed else FG_DRAFT)
+        elif u.partial:  # translation still streaming in: words appear as they are generated
+            tr.configure(text=u.partial + " …", fg=FG if u.closed else FG_DRAFT)
         elif u.translation:
             tr.configure(text=u.translation + ("" if u.final else " …"), fg=FG if u.final else FG_DRAFT)
         else:
@@ -190,7 +192,7 @@ class Overlay:
                 kind, payload = self.ui_q.get_nowait()
                 if kind == "status":
                     self._show_status(payload)
-                elif kind in ("heard", "translated"):
+                elif kind in ("heard", "partial", "translated"):
                     self._upsert(payload)
                     t = payload.timings
                     if kind == "translated" and "lag_ms" in t:

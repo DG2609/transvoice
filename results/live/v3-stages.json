@@ -1,0 +1,27 @@
+{
+  "name": "v3-stages",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "asr_error": {
+    "ja": 9.36,
+    "en": 14.73
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.5,
+    "en": 0.83
+  },
+  "final_lag_p50_ms": 6104,
+  "final_lag_p90_ms": 9310,
+  "stages_ms": {
+    "close_ms": 1247,
+    "final_start_ms": 1909,
+    "final_mt_ms": 4166
+  },
+  "final_needed_extra_mt": "39/40"
+}
