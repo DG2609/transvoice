@@ -31,7 +31,19 @@ from .textnorm import asr_text_for_mt, normalize
 
 LANGS = ("ja", "en", "vi")
 DEFAULT_ASR = {"ja": "parakeet-ja", "en": "sensevoice", "vi": "zipformer-vi-30m"}
-DEFAULT_MT = MT_DIR / "HY-MT1.5-1.8B-Q4_K_M.gguf"
+def default_mt() -> Path:
+    """IQ4_NL (see download.py); installs from v0.2.0 and earlier have Tencent's Q4_K_M instead."""
+    fast, old = MT_DIR / "HY-MT1.5-1.8B.i1-IQ4_NL.gguf", MT_DIR / "HY-MT1.5-1.8B-Q4_K_M.gguf"
+    return old if old.exists() and not fast.exists() else fast
+
+
+DEFAULT_MT = default_mt()
+# Re-translating a growing sentence mostly repeats the previous translation: llama.cpp's n-gram drafter
+# (shared across requests) proposes those tokens and the model checks several at once. Its defaults are
+# tuned for code edits (24-token match, 48+ token drafts) and almost never fire on a sentence; a 6-token
+# match with drafts of up to 16 tokens cuts the final translation time by ~14% on 4 E-cores.
+FAST_MT_ARGS = ("--spec-type", "ngram-mod", "--spec-ngram-mod-n-match", "6",
+                "--spec-ngram-mod-n-min", "1", "--spec-ngram-mod-n-max", "16")
 
 
 @dataclass
@@ -271,7 +283,7 @@ class Engine:
             self.asr[lang] = ASR[self.s.asr[lang]].build(lang, self.s.asr_threads)
         if self.s.their_lang == "auto":
             self.lid = LanguageId(self.s.asr_threads)
-        fast = dict(reuse_prefix=True, extra_args=("--spec-type", "ngram-mod")) if self.s.mt_fast else {}
+        fast = dict(reuse_prefix=True, extra_args=FAST_MT_ARGS) if self.s.mt_fast else {}
         self.mt = LlamaEngine(Path(self.s.mt_model), make_hy_mt_prompt(self.s.glossary), self.s.mt_threads,
                               low_priority=self.s.low_priority, **fast)
         self.mt.translate("Hello.", "en", "ja")  # warm-up
@@ -395,7 +407,7 @@ class Engine:
                 if channel == "__flush__":
                     with self.lock:
                         for ch in list(self.open):
-                            self._close(ch)
+                            self._close(ch, "flush")
                     self._run_rescores()
                     continue
                 self._add_chunk(channel, samples, ended_at, forced)
@@ -451,7 +463,7 @@ class Engine:
                     # The previous chunk ended a sentence exactly at the cut ("…思いますか" | "やっぱ…").
                     # Japanese endings are words, so they count even at a forced cut; Latin punctuation at
                     # a forced cut is only an ASR guess.
-                    self._close(channel)
+                    self._close(channel, "end")
                     snaps.append(s.snapshot())
                     s = None
                 if s is None:
@@ -472,7 +484,7 @@ class Engine:
                 too_long = (s.audio_s >= self.s.sentence_max_s and not forced) \
                     or s.audio_s >= 1.25 * self.s.sentence_max_s  # prefer closing at a pause, not mid-word
                 if not last or (not forced and ends_sentence(piece, lang)) or too_long:
-                    self._close(channel)
+                    self._close(channel, "split" if not last else "max" if too_long else "end")
                 snaps.append(s.snapshot())
                 s = None if not last else s
             if not pieces:  # relabel only
@@ -484,12 +496,15 @@ class Engine:
 
     def _rescore(self, s: Sentence, audio: list[np.ndarray]) -> None:
         """ASR thread, no lock held: replace the chunk-by-chunk text with one pass over the whole audio."""
+        t0 = time.perf_counter()
         text = asr_text_for_mt(self.asr[s.lang].transcribe(np.concatenate(audio)))
         with self.lock:
-            if text and not is_noise(text, s.lang, s.audio_s) and text != s.text:
+            changed = bool(text) and not is_noise(text, s.lang, s.audio_s) and text != s.text
+            if changed:
                 s.chunks = [text]
                 s.version += 1
             s.rescoring = False
+            s.timings.update(rescore_ms=round(1000 * (time.perf_counter() - t0)), rescore_changed=changed)
             snap = s.snapshot()
             self.lock.notify_all()
         self.on_event("heard", snap)
@@ -500,13 +515,14 @@ class Engine:
         self.open[channel] = s
         return s
 
-    def _close(self, channel: str) -> None:
-        """Caller holds the lock."""
+    def _close(self, channel: str, reason: str) -> None:
+        """Caller holds the lock. `reason`: end (sentence ending), pause, split, max (too long), flush..."""
         s = self.open.pop(channel, None)
         if s is None:
             return
         s.closed = True
         s.timings["close_ms"] = round(1000 * (time.time() - s.last_chunk_at))  # pause detection
+        s.timings["close"] = reason
         audio = self.sentence_audio.get(s.id, [])
         if (self.s.rescore_final and not s.shared_audio and len(s.chunks) >= 2 and len(audio) >= 2
                 and sum(len(a) for a in audio) <= self.s.rescore_max_s * SAMPLE_RATE
@@ -558,7 +574,7 @@ class Engine:
                 else:
                     pause = not s.last_forced and now - s.last_chunk_at >= self.s.sentence_gap_s
                 if pause or now - s.last_chunk_at >= self.s.chunk_hard_s + 3:  # safety net
-                    self._close(ch)
+                    self._close(ch, "pause" if pause else "timeout")
 
     # ---- translation ----
     def _next_job(self) -> Sentence | None:

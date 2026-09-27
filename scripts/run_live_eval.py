@@ -41,6 +41,7 @@ def main() -> None:
     ap.add_argument("--mt-fast", action=argparse.BooleanOptionalAction, default=None,
                     help="override Settings.mt_fast (default: the app default)")
     ap.add_argument("--no-drafts", action="store_true")
+    ap.add_argument("--mt-threads", type=int)
     args = ap.parse_args()
     limit_cpus(args.cpus)
 
@@ -55,6 +56,8 @@ def main() -> None:
                     drafts[s.id] = drafts.get(s.id, 0) + 1
 
     overrides = {} if args.mt_fast is None else {"mt_fast": args.mt_fast}
+    if args.mt_threads:
+        overrides["mt_threads"] = args.mt_threads
     settings = Settings(my_lang=args.me, their_lang="auto", rescore_final=not args.no_rescore,
                         drafts=not args.no_drafts, **overrides)
     engine = Engine(settings, on_event)
@@ -86,7 +89,7 @@ def main() -> None:
     engine.stop()
     stop_load.set()
 
-    out_rows, per_lang = {}, {}
+    out_rows, per_lang, detail = {}, {}, []
     lags, stages, extra_mt = [], {"close_ms": [], "final_start_ms": [], "final_first_ms": [], "final_mt_ms": []}, 0
     for lang, s, start, end in windows:
         mine = [(t, f) for t, f in finals if start - 0.5 <= f.started_at <= end + 0.5]
@@ -98,6 +101,8 @@ def main() -> None:
                 if k in f.timings:
                     stages[k].append(f.timings[k])
             extra_mt += "final_mt_ms" in f.timings  # the final needed a translation after the sentence closed
+            detail.append({"lang": lang, "id": f.id, "audio_s": round(f.audio_s, 2), "chunks": len(f.chunks),
+                           "drafts": drafts.get(f.id, 0), "text": f.text, **f.timings})
         per_lang.setdefault(lang, {"refs": [], "hyps": [], "sentences": 0, "drafts": 0})
         pl = per_lang[lang]
         pl["refs"].append(s[lang])
@@ -116,7 +121,8 @@ def main() -> None:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
     summary = {
         "name": args.name, "cpus": args.cpus or "all", "rescore": settings.rescore_final,
-        "mt_fast": settings.mt_fast, "drafts": settings.drafts,
+        "mt_fast": settings.mt_fast, "drafts": settings.drafts, "mt_model": Path(settings.mt_model).name,
+        "mt_threads": settings.mt_threads,
         "asr_error": {l: round(asr_error_rate(v["refs"], v["hyps"], l), 2) for l, v in per_lang.items()},
         "sentences_per_utt": {l: round(v["sentences"] / len(v["refs"]), 2) for l, v in per_lang.items()},
         "drafts_per_sentence": {l: round(v["drafts"] / max(1, v["sentences"]), 2) for l, v in per_lang.items()},
@@ -125,10 +131,14 @@ def main() -> None:
         # where the final lag goes (medians): pause detection, waiting for the translator, translating
         "stages_ms": {k: round(statistics.median(v)) for k, v in stages.items() if v},
         "final_needed_extra_mt": f"{extra_mt}/{len(lags)}",
+        "close_reasons": {r: sum(d.get("close") == r for d in detail) for r in sorted({d.get("close") for d in detail} - {None})},
         "machine_cpu_avg_pct": round(statistics.mean(load)) if load else None,
     }
     (ROOT / "results" / "live").mkdir(parents=True, exist_ok=True)
     (ROOT / "results" / "live" / f"{args.name}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    with open(ROOT / "results" / "live" / f"{args.name}.sentences.jsonl", "w", encoding="utf-8") as f:
+        for d in detail:  # per-sentence timings, for digging into the lag
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
     print(json.dumps(summary), flush=True)
 
 

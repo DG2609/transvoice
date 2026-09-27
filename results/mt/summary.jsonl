@@ -40,3 +40,15 @@
 {"engine": "qwen3.5-4b", "src": "en", "tgt": "vi", "n": 100, "chrf": 57.7, "flag_rate": 0.0, "p50_ms": 4695, "p95_ms": 7999, "tok_per_s": 7.3, "avg_cores": 3.99, "ram_mb": 4167, "threads": 4}
 {"engine": "qwen3.5-4b", "src": "vi", "tgt": "ja", "n": 100, "chrf": 30.93, "flag_rate": 0.0, "p50_ms": 4336, "p95_ms": 6724, "tok_per_s": 7.5, "avg_cores": 3.98, "ram_mb": 4167, "threads": 4}
 {"engine": "qwen3.5-4b", "src": "vi", "tgt": "en", "n": 100, "chrf": 62.48, "flag_rate": 0.0, "p50_ms": 3708, "p95_ms": 5982, "tok_per_s": 7.2, "avg_cores": 3.99, "ram_mb": 4167, "threads": 4}
+{"engine": "hy-mt-1.8b-q4_0", "src": "ja", "tgt": "en", "n": 100, "chrf": 55.32, "flag_rate": 1.0, "p50_ms": 1111, "p95_ms": 1899, "tok_per_s": 27.5, "avg_cores": 3.97, "ram_mb": 2031, "threads": 4}
+{"engine": "hy-mt-1.8b-q4_0", "src": "ja", "tgt": "vi", "n": 100, "chrf": 44.86, "flag_rate": 2.0, "p50_ms": 1752, "p95_ms": 2952, "tok_per_s": 30.7, "avg_cores": 3.98, "ram_mb": 2032, "threads": 4}
+{"engine": "hy-mt-1.8b-q4_0", "src": "en", "tgt": "ja", "n": 100, "chrf": 38.22, "flag_rate": 0.0, "p50_ms": 1380, "p95_ms": 2514, "tok_per_s": 31.5, "avg_cores": 3.97, "ram_mb": 2032, "threads": 4}
+{"engine": "hy-mt-1.8b-q4_0", "src": "en", "tgt": "vi", "n": 100, "chrf": 53.27, "flag_rate": 0.0, "p50_ms": 1654, "p95_ms": 2740, "tok_per_s": 31.7, "avg_cores": 3.97, "ram_mb": 2032, "threads": 4}
+{"engine": "hy-mt-1.8b-q4_0", "src": "vi", "tgt": "ja", "n": 100, "chrf": 31.97, "flag_rate": 2.0, "p50_ms": 1612, "p95_ms": 2521, "tok_per_s": 29.4, "avg_cores": 3.98, "ram_mb": 2034, "threads": 4}
+{"engine": "hy-mt-1.8b-q4_0", "src": "vi", "tgt": "en", "n": 100, "chrf": 57.73, "flag_rate": 0.0, "p50_ms": 1147, "p95_ms": 1858, "tok_per_s": 26.7, "avg_cores": 3.97, "ram_mb": 2034, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl", "src": "ja", "tgt": "en", "n": 100, "chrf": 56.2, "flag_rate": 0.0, "p50_ms": 1125, "p95_ms": 1880, "tok_per_s": 27.5, "avg_cores": 3.97, "ram_mb": 2042, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl", "src": "ja", "tgt": "vi", "n": 100, "chrf": 45.03, "flag_rate": 1.0, "p50_ms": 1800, "p95_ms": 3559, "tok_per_s": 30.5, "avg_cores": 3.97, "ram_mb": 2042, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl", "src": "en", "tgt": "ja", "n": 100, "chrf": 38.19, "flag_rate": 0.0, "p50_ms": 1464, "p95_ms": 2398, "tok_per_s": 31.1, "avg_cores": 3.97, "ram_mb": 2042, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl", "src": "en", "tgt": "vi", "n": 100, "chrf": 53.03, "flag_rate": 4.0, "p50_ms": 1630, "p95_ms": 2633, "tok_per_s": 31.8, "avg_cores": 3.97, "ram_mb": 2042, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl", "src": "vi", "tgt": "ja", "n": 100, "chrf": 31.99, "flag_rate": 1.0, "p50_ms": 1596, "p95_ms": 2807, "tok_per_s": 29.4, "avg_cores": 3.97, "ram_mb": 2044, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl", "src": "vi", "tgt": "en", "n": 100, "chrf": 57.98, "flag_rate": 0.0, "p50_ms": 1126, "p95_ms": 1890, "tok_per_s": 26.7, "avg_cores": 3.97, "ram_mb": 2044, "threads": 4}

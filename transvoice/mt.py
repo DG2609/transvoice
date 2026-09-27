@@ -304,6 +304,8 @@ REGISTRY: dict[str, MtSpec] = {
     "nllb-1.3b": MtSpec(ALL_PAIRS, lambda t: NllbEngine(MT_DIR / "nllb-200-distilled-1.3B-ct2-int8", t), "CT2 int8, beam 4"),
     "hy-mt-1.8b": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B-Q4_K_M.gguf"), _hy_mt, t), "Q4_K_M"),
     "hy-mt-1.8b-q8": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B-Q8_0.gguf"), _hy_mt, t), "Q8_0"),
+    "hy-mt-1.8b-q4_0": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B.i1-Q4_0.gguf"), _hy_mt, t), "imatrix Q4_0"),
+    "hy-mt-1.8b-iq4nl": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B.i1-IQ4_NL.gguf"), _hy_mt, t), "imatrix IQ4_NL"),
     "hy-mt-1.8b-gloss": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B-Q4_K_M.gguf"), _hy_mt_glossary, t), "Q4_K_M + auto glossary"),
     # Its Jinja chat template rejects plain-string content, so skip template parsing and use the raw prompt.
     "translategemma-4b": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("translategemma-4b-it.Q4_K_M.gguf"), _translategemma, t, jinja=False), "Q4_K_M"),

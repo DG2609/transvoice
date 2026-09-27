@@ -1,0 +1,37 @@
+{
+  "name": "v6-iq4nl",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "mt_model": "HY-MT1.5-1.8B.i1-IQ4_NL.gguf",
+  "mt_threads": 4,
+  "asr_error": {
+    "ja": 9.36,
+    "en": 14.73
+  },
+  "sentences_per_utt": {
+    "ja": 1.47,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.73,
+    "en": 1.06
+  },
+  "final_lag_p50_ms": 5351,
+  "final_lag_p90_ms": 6879,
+  "stages_ms": {
+    "close_ms": 1285,
+    "final_start_ms": 1851,
+    "final_first_ms": 3602,
+    "final_mt_ms": 3543
+  },
+  "final_needed_extra_mt": "37/40",
+  "close_reasons": {
+    "end": 18,
+    "max": 2,
+    "pause": 19,
+    "split": 1
+  },
+  "machine_cpu_avg_pct": 20
+}

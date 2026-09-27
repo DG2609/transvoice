@@ -20,7 +20,7 @@
 | ASR English | SenseVoice-Small 2024-07-17 (sherpa-onnx, int8) |
 | ASR Vietnamese | Zipformer-30M-vi (sherpa-onnx, int8) |
 | Language ID | Whisper-base (sherpa-onnx) |
-| Translation | HY-MT1.5-1.8B Q4_K_M (llama.cpp) + automatic glossary |
+| Translation | HY-MT1.5-1.8B IQ4_NL (imatrix, llama.cpp) + automatic glossary |
 | Summary / Q&A (on demand, later) | Qwen3.5-4B Q4_K_M |
 
 ## App prototype (2026-09-26)
@@ -82,6 +82,50 @@ What changed and why:
   llama-server), so the final translation does not wait for an outdated draft.
 - The final lag is higher than v0.1.0 because each final now covers a whole sentence instead of a fragment;
   drafts still appear while the sentence is being spoken.
+
+## Optimization round 3: where the final lag goes
+
+Per-stage medians on 4 E-cores (v0.2.0, `results/live/v3-stages.json`), measured from the end of the last chunk:
+the pause is detected after 1.25 s, the final translation starts at 1.9 s (whole-sentence re-recognition, or a
+stale draft being cancelled), and the translation itself takes 4.2 s. 39 of 40 finals needed a new translation
+because the last draft never covered the finished text.
+
+- **Streamed subtitles.** The translation is streamed into the overlay while the model writes it (never
+  shrinking a draft already on screen). The first words of the final appear after 3.3 s instead of 6.2 s;
+  quality and total lag unchanged (`v5-streaming-rerun`).
+- **Rejected: re-recognising the sentence at every pause** (before it is known to be over): on 4 cores the
+  extra ASR competes with translation; p50 6.9 s vs 6.2 s (`v4-early-rescore`).
+- Live runs are sensitive to other load on the machine (one run on a busy PC: p50 10 s); `run_live_eval.py`
+  now records the machine's average CPU load so such runs can be spotted.
+
+The translation itself (4.2 s) is almost all token generation: a final re-translates a whole sentence,
+~60 tokens at 13 tokens/s on 4 E-cores; prompt processing is only ~0.3 s thanks to prefix reuse
+(`results/live/*.sentences.jsonl`, scratch benchmark of 30 FLEURS sentences: draft of 65% then final).
+
+| final translation, 4 E-cores | ms | tok/s | output vs. no drafting |
+|---|---|---|---|
+| Q4_K_M, n-gram drafting off | 4873 | 13.1 | - |
+| Q4_K_M, llama.cpp `ngram-mod` defaults (v0.2.0) | 4887 | 13.1 | 3 of 49 drafted tokens accepted |
+| Q4_K_M, `ngram-mod` match 6, draft 1-16 | 4238 | 15.1 | 19/30 identical (near-tie word choices) |
+| Q8_0 | 6461 | 9.6 | - |
+| threads 3 instead of 4 | 5340 | 12.1 | - |
+| imatrix Q4_0 | 3924 | 16.6 | - |
+| imatrix IQ4_NL | 3846 | 16.8 | - |
+| **imatrix IQ4_NL, `ngram-mod` match 6, draft 1-16** | **3545** | **18.3** | **30/30 identical** |
+
+- **IQ4_NL instead of Q4_K_M.** Same quality on the 600-sentence text benchmark (COMET averaged over the 6
+  directions: IQ4_NL 0.884, Q4_K_M 0.883, Q4_0 0.882; no real mistranslation in any of them) and 27% faster
+  generation: llama.cpp repacks IQ4_NL/Q4_0 weights into CPU-friendly layouts. With those kernels, checking
+  drafted tokens in a batch gives exactly the same output as generating one by one (with Q4_K_M it does not).
+- **n-gram drafting tuned for sentences.** llama.cpp's `ngram-mod` defaults (24-token match, 48+ token drafts)
+  target code edits and almost never fired. A 6-token match with drafts of up to 16 tokens reuses the previous
+  draft's wording. Shorter matches (4) guess too often; rejected guesses cost CPU time.
+- Q8_0 is slower (memory bound) and 3 threads only 8% slower than 4 (worth trying when the CPU is shared).
+
+Live result (`v6-iq4nl`, 4 E-cores): final lag p50 / p90 **5.4 / 6.9 s** (v0.2.0: 6.2 / 9.5 s), final
+translation 3.5 s (4.3 s); COMET en→vi 0.876 / ja→vi 0.858 (0.880 / 0.857, within noise at n=15), 0% bad.
+Sentences closed at an ending 18, at a pause 19, too long 2, split 1.
+Installs that already have Q4_K_M keep using it until `--download-models` fetches IQ4_NL.
 
 ## Known limitations
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .engine import LANGS, Engine, Settings
+from .engine import DEFAULT_MT, LANGS, Engine, Settings
 from .osutil import lower_own_priority
 from .paths import MODELS, ROOT, SAMPLE_RATE
 from .session import SessionLog
@@ -96,7 +96,7 @@ def main() -> None:
         print(f"Xong. Model nằm trong {MODELS}")
         return
 
-    missing = [p for p in (MODELS / "mt" / "HY-MT1.5-1.8B-Q4_K_M.gguf", MODELS / "vad" / "silero_vad.onnx",
+    missing = [p for p in (DEFAULT_MT, MODELS / "vad" / "silero_vad.onnx",
                            MODELS / "bin" / "llama.cpp") if not p.exists()]
     if missing:
         print(f"Chưa có model trong {MODELS}.\nChạy trước:  TransVoice.exe --download-models  (khoảng 2,9 GB)")

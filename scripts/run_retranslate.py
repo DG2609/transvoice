@@ -14,7 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bench.resources import limit_cpus  # noqa: E402
-from transvoice.mt import LlamaEngine, MT_DIR, make_hy_mt_prompt  # noqa: E402
+from transvoice.engine import DEFAULT_MT, FAST_MT_ARGS  # noqa: E402
+from transvoice.mt import LlamaEngine, make_hy_mt_prompt  # noqa: E402
 
 VARIANTS = {
     "baseline": dict(reuse_prefix=False, extra_args=()),
@@ -22,6 +23,7 @@ VARIANTS = {
     "prefix+ngram-cache": dict(reuse_prefix=True, extra_args=("--spec-type", "ngram-cache")),
     "prefix+ngram-simple": dict(reuse_prefix=True, extra_args=("--spec-type", "ngram-simple")),
     "prefix+ngram-mod": dict(reuse_prefix=True, extra_args=("--spec-type", "ngram-mod")),
+    "prefix+ngram-mod-tuned": dict(reuse_prefix=True, extra_args=FAST_MT_ARGS),
 }
 
 
@@ -42,7 +44,7 @@ def main() -> None:
 
     reference = None
     for name in args.variants.split(","):
-        engine = LlamaEngine(MT_DIR / "HY-MT1.5-1.8B-Q4_K_M.gguf", make_hy_mt_prompt(), args.threads,
+        engine = LlamaEngine(DEFAULT_MT, make_hy_mt_prompt(), args.threads,
                              **VARIANTS[name])
         engine.translate("Hello.", "en", "ja")
         t0 = time.perf_counter()
