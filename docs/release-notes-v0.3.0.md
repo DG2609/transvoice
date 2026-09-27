@@ -17,6 +17,8 @@ Changes:
   and checked in batches (output identical to normal decoding).
 - The whole-sentence second recognition pass now runs for Japanese (where it prevents mistranslations) and
   not for English (where it only delayed the result by 1.5 s).
+- In continuous speech, a finished sentence's final translation no longer waits behind the draft of the
+  sentence that follows (replay of a real Japanese interview on 4 cores: p90 lag 12.0 → 9.9 s).
 - A pause right after a word that cannot end a sentence ("…at the", "…雨が", "…của") no longer ends the
   sentence unless it lasts 1.2 s.
 
