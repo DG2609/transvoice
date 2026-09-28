@@ -192,6 +192,11 @@ class Overlay:
                 kind, payload = self.ui_q.get_nowait()
                 if kind == "status":
                     self._show_status(payload)
+                elif kind == "dropped":  # turned out to be a language we do not translate
+                    item = self.items.pop(payload.id, None)
+                    if item is not None:
+                        item[0].destroy()
+                        self._fit()
                 elif kind in ("heard", "partial", "translated"):
                     self._upsert(payload)
                     t = payload.timings

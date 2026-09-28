@@ -17,6 +17,7 @@ from .paths import ROOT
 
 MT_DIR = ROOT / "models" / "mt"
 LANG_NAME = {"ja": "Japanese", "en": "English", "vi": "Vietnamese"}
+LANG_NAME_ZH = {"ja": "日语", "en": "英语", "vi": "越南语"}  # HY-MT's contextual prompt is written in Chinese
 NLLB_CODE = {"ja": "jpn_Jpan", "en": "eng_Latn", "vi": "vie_Latn"}
 ALL_PAIRS = [(s, t) for s in LANG_NAME for t in LANG_NAME if s != t]
 JA_EN_PAIRS = [("ja", "en"), ("en", "ja")]
@@ -65,6 +66,23 @@ class Translation:
     text: str
     latency_s: float
     out_tokens: int | None = None
+
+
+class PivotEngine:
+    """Translate through English when neither side is English (ja -> en -> vi): benchmark variant."""
+
+    def __init__(self, inner):
+        self.inner, self.pids = inner, getattr(inner, "pids", [])
+
+    def translate(self, text: str, src: str, tgt: str, **kw) -> Translation:
+        if "en" in (src, tgt):
+            return self.inner.translate(text, src, tgt, **kw)
+        a = self.inner.translate(text, src, "en")
+        b = self.inner.translate(a.text, "en", tgt)
+        return Translation(b.text, a.latency_s + b.latency_s, (a.out_tokens or 0) + (b.out_tokens or 0))
+
+    def close(self) -> None:
+        self.inner.close()
 
 
 class NllbEngine:
@@ -148,12 +166,20 @@ class LlamaEngine:
         raise TimeoutError("llama-server did not become healthy")
 
     def translate(self, text: str, src: str, tgt: str, cancel: threading.Event | None = None,
-                  on_partial: Callable[[str], None] | None = None) -> Translation:
+                  on_partial: Callable[[str], None] | None = None, context: list[str] | tuple = (),
+                  history: list[tuple[str, str]] | tuple = ()) -> Translation:
         """With `cancel`, the answer is streamed and abandoned as soon as `cancel` is set: closing the
         connection makes llama-server stop generating, so a stale draft does not delay the next job.
         `on_partial` receives the text generated so far (streamed mode only), so subtitles can grow word
         by word instead of appearing only when the whole sentence is translated."""
-        req = self.prompt(text, src, tgt)
+        req = self.prompt(text, src, tgt, context) if context else self.prompt(text, src, tgt)
+        if history and "messages" in req:
+            # Earlier sentences as finished turns of the same chat: the model sees how they were translated
+            # instead of being asked to translate them again (which the contextual prompt made it do).
+            turns = []
+            for past_src, past_tr in history:
+                turns += [*self.prompt(past_src, src, tgt)["messages"], {"role": "assistant", "content": past_tr}]
+            req = {**req, "messages": turns + req["messages"]}
         common = {"temperature": 0, "repeat_penalty": 1.05, "cache_prompt": self.reuse_prefix}
         t0 = time.perf_counter()
         if cancel is not None:
@@ -236,15 +262,19 @@ def user_glossary_terms(text: str, src: str, tgt: str, entries) -> list[tuple[st
 
 
 def make_hy_mt_prompt(user_entries=()) -> PromptFn:
-    """HY-MT's terminology-intervention format, used only when the source contains known terms."""
+    """HY-MT's terminology-intervention format, used only when the source contains known terms, and its
+    contextual-translation format when earlier sentences of the conversation are given."""
 
-    def prompt(text, src, tgt):
+    def prompt(text, src, tgt, context=()):
         terms = glossary_terms(text, src, tgt) + user_glossary_terms(text, src, tgt, user_entries)
+        ref = "\n".join(f"{s} is translated as {t}" for s, t in terms)
+        glossary = f"Refer to the following translations:\n{ref}\n\n" if terms else ""
+        if context:
+            return {"messages": [{"role": "user", "content": glossary + "\n".join(context) + "\n"
+                    f"参考上面的信息，把下面的文本翻译成{LANG_NAME_ZH[tgt]}，注意不需要翻译上文，也不要额外解释：\n{text}"}]}
         if not terms:
             return _hy_mt(text, src, tgt)
-        ref = "\n".join(f"{s} is translated as {t}" for s, t in terms)
-        return {"messages": [{"role": "user", "content":
-                f"Refer to the following translations:\n{ref}\n\n"
+        return {"messages": [{"role": "user", "content": glossary +
                 f"Translate the following segment into {LANG_NAME[tgt]}, without additional explanation.\n\n{text}"}]}
 
     return prompt
@@ -306,6 +336,8 @@ REGISTRY: dict[str, MtSpec] = {
     "hy-mt-1.8b-q8": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B-Q8_0.gguf"), _hy_mt, t), "Q8_0"),
     "hy-mt-1.8b-q4_0": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B.i1-Q4_0.gguf"), _hy_mt, t), "imatrix Q4_0"),
     "hy-mt-1.8b-iq4nl": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B.i1-IQ4_NL.gguf"), _hy_mt, t), "imatrix IQ4_NL"),
+    "hy-mt-1.8b-iq4nl-pivot": MtSpec([("ja", "vi"), ("vi", "ja")], lambda t: PivotEngine(
+        LlamaEngine(_gguf("HY-MT1.5-1.8B.i1-IQ4_NL.gguf"), _hy_mt, t)), "imatrix IQ4_NL, through English"),
     "hy-mt-1.8b-gloss": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("HY-MT1.5-1.8B-Q4_K_M.gguf"), _hy_mt_glossary, t), "Q4_K_M + auto glossary"),
     # Its Jinja chat template rejects plain-string content, so skip template parsing and use the raw prompt.
     "translategemma-4b": MtSpec(ALL_PAIRS, lambda t: LlamaEngine(_gguf("translategemma-4b-it.Q4_K_M.gguf"), _translategemma, t, jinja=False), "Q4_K_M"),

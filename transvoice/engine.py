@@ -61,12 +61,27 @@ class Settings:
     # Chunk length: after `soft` seconds of speech cut at the next quiet 32 ms window, after `hard` cut anyway.
     chunk_soft_s: float = 2.5
     chunk_hard_s: float = 5.0
+    # Quiet needed for a soft cut. Japanese has silent stretches inside words (the closure of っ, /k/, /t/:
+    # 60-150 ms), and a cut there garbles the word on both sides ("電話をかけ|かけ", "出血性|性ショック"):
+    # on a TV news clip 192 ms instead of 64 ms took the final text's error from 16.5% to 11.6%. English
+    # keeps 64 ms: longer English chunks get false sentence periods inside (more split sentences in FLEURS).
+    chunk_quiet_s: float = 0.064
+    chunk_quiet_ja_s: float = 0.192
+    chunk_quiet_ramp: bool = True  # accept shorter gaps as the hard limit approaches (fewer mid-word hard cuts)
     sentence_gap_s: float = 0.8  # extra pause after a chunk that closes the sentence
     # ... when the text so far ends in a word that cannot end a sentence ("the", "and", "が", "của"):
     # the speaker is hesitating, not finished.
     sentence_gap_open_s: float = 1.2
+    # ... when the text ends in a Japanese sentence ending (です, ました) right at a cut: a short pause is enough.
+    # Without it such a sentence waits for the next chunk (3-5 s in news), in case it goes on ("…ですが").
+    # Measured from the speech level, because music under a voice keeps the VAD from ever reporting silence.
+    sentence_end_pause_s: float = 0.35
     sentence_max_s: float = 12.0  # close long sentences so the final re-translation stays fast
     drafts: bool = True  # translate unfinished sentences (live feel); False = only finished sentences
+    # Drafts pause while the translator was busy this much of the last 30 s. On 4 slow cores dense news keeps
+    # it saturated by finals alone (lag 12-16 s either way); pausing drafts halves the wasted draft work there,
+    # leaving the CPU to the other programs.
+    draft_max_load: float = 0.85
     # When a sentence ends, recognise its whole audio again: chunk cuts garble words at the joins
     # ("一番一番は", "金金属"), and the final translation should not inherit that.
     rescore_final: bool = True
@@ -74,7 +89,9 @@ class Settings:
     # the translation does not (HY-MT copes with the small errors), while the final comes 1.5 s later.
     # Vietnamese (30M-parameter zipformer) costs almost nothing to re-run.
     rescore_langs: tuple[str, ...] = ("ja", "vi")
-    rescore_max_s: float = 10.0  # longer sentences cost too much ASR time on office CPUs (p90 lag 8 -> 15 s)
+    # Up to this long. Once only Japanese is re-recognised, 16 s covers the long run-on sentences of news and
+    # interviews (FLEURS ja CER 8.2% -> 6.6%); they used to keep the garbled words of every chunk join.
+    rescore_max_s: float = 16.0
     # Faster re-translation: reuse the KV cache of the shared prompt prefix and draft tokens with n-gram
     # lookup (FAST_MT_ARGS). With IQ4_NL weights the output is identical to plain decoding.
     mt_fast: bool = True
@@ -91,11 +108,13 @@ class Sentence:
     chunks: list[str] = field(default_factory=list)
     last_chunk_at: float = 0.0  # wall clock when the last chunk's audio ended
     last_forced: bool = False  # the last chunk was cut mid-speech, so the speaker is still talking
+    last_gap: float = float("inf")  # quiet at that cut (s): a short one is often inside a word
     lang_confirmed: bool = True  # False while the language is a guess from too little audio
     shared_audio: bool = False  # split inside a chunk: its audio also holds part of a neighbouring sentence
     rescoring: bool = False  # whole-sentence recognition running; the translator waits for it
     audio_s: float = 0.0
     closed: bool = False
+    dropped: bool = False  # withdrawn: in a language we do not translate
     version: int = 0  # bumps whenever a chunk is appended
     translated_version: int = 0
     translation: str | None = None
@@ -216,9 +235,10 @@ class _ChannelVad:
 
     WINDOW = 512  # Silero's frame size at 16 kHz
 
-    QUIET_WINDOWS = 2  # a cut needs 64 ms well below the speech level: a gap between words, not a soft syllable
-
-    def __init__(self, vad, soft_s: float, hard_s: float):
+    def __init__(self, vad, soft_s: float, hard_s: float, quiet_s: float = 0.064, ramp: bool = True,
+                 ramp_from: float = 0.0):
+        self.ramp, self.ramp_from = ramp, ramp_from  # the shorter gaps are accepted from soft + ramp_from * span
+        self.set_quiet(quiet_s)
         self.vad = vad
         self.soft, self.hard = int(soft_s * SAMPLE_RATE), int(hard_s * SAMPLE_RATE)
         self.pending = np.zeros(0, np.float32)
@@ -226,9 +246,12 @@ class _ChannelVad:
         self.levels: list[float] = []  # RMS of each window in the open segment
         self.quiet = 0  # consecutive quiet windows after the soft limit
         self.last_speech_at = 0.0  # wall clock of the last window the VAD considered speech
+        self.cut_level = 0.0  # speech level of the segment cut last
+        self.cut_quiet = -1  # quiet windows around the last cut so far; -1 once the speaker goes on
 
-    def accept(self, samples: np.ndarray) -> list[tuple[np.ndarray, bool]]:
-        """Returns closed segments as (samples, forced); forced = cut mid-speech, the sentence goes on."""
+    def accept(self, samples: np.ndarray) -> list[tuple[np.ndarray, bool, float]]:
+        """Returns closed segments as (samples, forced, gap): forced = cut mid-speech, the sentence goes on;
+        gap = seconds of quiet at the cut (0 for a cut at the hard limit, inf for the end of speech)."""
         out = []
         buf = np.concatenate([self.pending, samples])
         n = len(buf) // self.WINDOW * self.WINDOW
@@ -236,37 +259,60 @@ class _ChannelVad:
             w = buf[i : i + self.WINDOW]
             self.vad.accept_waveform(w)
             out += self._pop(forced=False)
+            level = float(np.sqrt(np.mean(w * w)))
+            if self.cut_quiet >= 0:
+                self.cut_quiet = self.cut_quiet + 1 if level < 0.3 * self.cut_level else -1
             if not self.vad.is_speech_detected():
                 self.run, self.levels, self.quiet = 0, [], 0
                 continue
             self.last_speech_at = time.time()
             self.run += self.WINDOW
-            level = float(np.sqrt(np.mean(w * w)))
             self.levels.append(level)
             if self.run >= self.soft and level < 0.3 * float(np.median(self.levels)):
                 self.quiet += 1
             else:
                 self.quiet = 0
-            if self.quiet >= self.QUIET_WINDOWS or self.run >= self.hard:
+            if self.quiet >= self._needed_quiet() or self.run >= self.hard:
+                self.cut_level, self.cut_quiet = float(np.median(self.levels)), self.quiet
                 self.vad.flush()  # closes the segment here; detection continues with the next window
                 self.run, self.levels, self.quiet = 0, [], 0
-                out += self._pop(forced=True)
+                out += self._pop(forced=True, gap=self.cut_quiet * self.WINDOW / SAMPLE_RATE)
         self.pending = buf[n:]
         return out
+
+    MIN_QUIET_WINDOWS = 2  # 64 ms: still better than the hard cut, which lands anywhere, often mid-word
+
+    def set_quiet(self, quiet_s: float) -> None:
+        # A cut needs this many 32 ms windows well below the speech level: a gap between words, not a soft syllable.
+        self.quiet_windows = max(1, round(quiet_s * SAMPLE_RATE / self.WINDOW))
+
+    def _needed_quiet(self) -> int:
+        """Right after the soft limit only a real pause cuts; the closer the hard limit, the shorter the gap that
+        will do (a speaker without pauses would otherwise be cut mid-word at the hard limit)."""
+        if not self.ramp or self.quiet_windows <= self.MIN_QUIET_WINDOWS:
+            return self.quiet_windows
+        span = self.hard - self.soft
+        progress = min(1.0, max(0.0, (self.run - self.soft - self.ramp_from * span) / ((0.9 - self.ramp_from) * span)))
+        return round(self.quiet_windows - progress * (self.quiet_windows - self.MIN_QUIET_WINDOWS))
 
     @property
     def speaking(self) -> bool:
         return self.run > 0
+
+    @property
+    def pause_after_cut_s(self) -> float:
+        """How long the speaker has been quiet at the last cut (before and after it); 0 once they went on."""
+        return max(0, self.cut_quiet) * self.WINDOW / SAMPLE_RATE
 
     def flush(self) -> list[tuple[np.ndarray, bool]]:
         self.vad.flush()
         self.run, self.levels, self.quiet = 0, [], 0
         return self._pop(forced=False)
 
-    def _pop(self, forced: bool) -> list[tuple[np.ndarray, bool]]:
+    def _pop(self, forced: bool, gap: float = float("inf")) -> list[tuple[np.ndarray, bool, float]]:
         out = []
         while not self.vad.empty():
-            out.append((np.array(self.vad.front.samples, dtype=np.float32), forced))
+            out.append((np.array(self.vad.front.samples, dtype=np.float32), forced, gap))
             self.vad.pop()
         return out
 
@@ -298,6 +344,8 @@ class Engine:
         self.mt_busy = False
         # Where the translator's time goes (seconds, counts): drafts, finals, work thrown away by a cancel.
         self.mt_stats: collections.Counter = collections.Counter()
+        self.mt_busy_log: collections.deque = collections.deque(maxlen=200)  # (start, end) of translations
+        self.mt_job_started = 0.0
         self.threads: list[threading.Thread] = []
 
     # ---- lifecycle ----
@@ -356,8 +404,16 @@ class Engine:
             cfg.sample_rate = SAMPLE_RATE
             cfg.num_threads = 1
             self.vads[channel] = _ChannelVad(sherpa_onnx.VoiceActivityDetector(cfg, buffer_size_in_seconds=60),
-                                             self.s.chunk_soft_s, self.s.chunk_hard_s)
+                                             self.s.chunk_soft_s, self.s.chunk_hard_s, self._chunk_quiet(channel),
+                                             ramp=bool(self.s.chunk_quiet_ramp))
         return self.vads[channel]
+
+    def _chunk_quiet(self, channel: str, lang: str | None = None) -> float:
+        """Quiet needed to cut a chunk, for the language being spoken on this channel."""
+        if lang is None:
+            lang = self.s.my_lang if channel == "me" else (
+                self.s.their_lang if self.s.their_lang != "auto" else self.their_last)
+        return self.s.chunk_quiet_ja_s if lang == "ja" else self.s.chunk_quiet_s
 
     def _vad_loop(self) -> None:
         while not self.stop_flag.is_set():
@@ -368,21 +424,30 @@ class Engine:
             try:
                 if channel == "__flush__":
                     for ch, cv in self.vads.items():
-                        for seg, forced in cv.flush():
-                            self._enqueue(ch, seg, time.time(), forced)
-                    self.seg_q.put(("__flush__", None, time.time(), False))
+                        for seg, forced, gap in cv.flush():
+                            self._enqueue(ch, seg, time.time(), forced, gap)
+                    self.seg_q.put(("__flush__", None, time.time(), False, float("inf")))
                     continue
                 cv = self._vad_for(channel)
-                for seg, forced in cv.accept(self.agc.setdefault(channel, AutoGain())(samples)):
-                    self._enqueue(channel, seg, time.time(), forced)
+                for seg, forced, gap in cv.accept(self.agc.setdefault(channel, AutoGain())(samples)):
+                    self._enqueue(channel, seg, time.time(), forced, gap)
             finally:
                 self.audio_q.task_done()
 
     # ---- recognition ----
     LID_CONFIRM_S = 2.0  # language ID on at least this much audio is trusted (~94% at 3 s in the benchmark)
+    # Languages Whisper confuses with the ones we handle (Japanese heard as Chinese or Korean): not foreign.
+    LID_CONFUSABLE = {"zh", "yue", "ko"}
 
-    def _language(self, channel: str, samples: np.ndarray) -> tuple[str, bool]:
-        """(language, confirmed). Unconfirmed guesses are re-checked once the sentence has more audio."""
+    def _foreign(self, lang: str, samples_n: int) -> bool:
+        """Clearly another language (a Nepali interview in Japanese news): recognising it as Japanese gives
+        nonsense that the translator turns into a fluent, invented sentence, so it is not translated at all."""
+        return (lang not in self.s.langs and lang not in self.LID_CONFUSABLE
+                and samples_n >= self.LID_CONFIRM_S * SAMPLE_RATE)
+
+    def _language(self, channel: str, samples: np.ndarray) -> tuple[str | None, bool]:
+        """(language, confirmed); None = a language we do not translate. Unconfirmed guesses are re-checked
+        once the sentence has more audio."""
         if channel == "me":
             return self.s.my_lang, True
         if self.s.their_lang != "auto":
@@ -391,16 +456,24 @@ class Engine:
             return self.their_last, False
         lang = self.lid.detect(samples)
         if lang in self.s.langs:
+            # Trusted only if it agrees with the previous sentence: a first sentence or a switch of language is
+            # re-checked on more audio (Whisper heard 3 s of Japanese news as Vietnamese; 7 s were clear).
+            agrees = lang == self.their_last
             self.their_last = lang
-            return lang, len(samples) >= self.LID_CONFIRM_S * SAMPLE_RATE
+            return lang, agrees and len(samples) >= self.LID_CONFIRM_S * SAMPLE_RATE
+        if self._foreign(lang, len(samples)):
+            return None, True
         return self.their_last or next(l for l in self.s.langs if l != self.s.my_lang), False
 
-    def _recheck_language(self, s: Sentence, audio: list[np.ndarray]) -> tuple[str, bool, list[str] | None]:
-        """Re-run language ID on the whole sentence so far; if it changed, re-recognise earlier chunks."""
+    def _recheck_language(self, s: Sentence, audio: list[np.ndarray]) -> tuple[str | None, bool, list[str] | None]:
+        """Re-run language ID on the whole sentence so far; if it changed, re-recognise earlier chunks.
+        None = the sentence is in a language we do not translate."""
         joined = np.concatenate(audio)
         if len(joined) < self.LID_CONFIRM_S * SAMPLE_RATE:
             return s.lang, False, None
         detected = self.lid.detect(joined)
+        if self._foreign(detected, len(joined)):
+            return None, True, None
         if detected not in self.s.langs or detected == s.lang:
             return s.lang, True, None
         self.their_last = detected
@@ -412,15 +485,16 @@ class Engine:
             return self.s.my_lang
         return self.their_last or next(l for l in self.s.langs if l != self.s.my_lang)
 
-    def _enqueue(self, channel: str, samples: np.ndarray, ended_at: float, forced: bool) -> None:
+    def _enqueue(self, channel: str, samples: np.ndarray, ended_at: float, forced: bool,
+                 gap: float = float("inf")) -> None:
         with self.lock:
             self.queued[channel] += 1
-        self.seg_q.put((channel, samples, ended_at, forced))
+        self.seg_q.put((channel, samples, ended_at, forced, gap))
 
     def _asr_loop(self) -> None:
         while not self.stop_flag.is_set():
             try:
-                channel, samples, ended_at, forced = self.seg_q.get(timeout=0.2)
+                channel, samples, ended_at, forced, gap = self.seg_q.get(timeout=0.2)
             except queue.Empty:
                 self._close_quiet_sentences()
                 self._run_rescores()
@@ -435,7 +509,7 @@ class Engine:
                             self._close(ch, "flush")
                     self._run_rescores()
                     continue
-                self._add_chunk(channel, samples, ended_at, forced)
+                self._add_chunk(channel, samples, ended_at, forced, gap)
             except Exception as e:  # noqa: BLE001 - keep the app alive, report the failure
                 self.on_event("error", f"{type(e).__name__}: {e}")
             finally:
@@ -443,7 +517,8 @@ class Engine:
             self._close_quiet_sentences()
             self._run_rescores()
 
-    def _add_chunk(self, channel: str, samples: np.ndarray, ended_at: float, forced: bool) -> None:
+    def _add_chunk(self, channel: str, samples: np.ndarray, ended_at: float, forced: bool,
+                   gap: float = float("inf")) -> None:
         audio_s = len(samples) / SAMPLE_RATE
         if audio_s < 0.2:  # a forced cut can leave a sliver too short for the ASR front-end (0 frames)
             return
@@ -460,12 +535,17 @@ class Engine:
             audio = self.sentence_audio.get(current.id, []) + [samples]
             if not confirmed:
                 lang, confirmed, relabeled = self._recheck_language(current, audio)
+        if lang is None:
+            if current is not None:
+                self._drop(current)
+            return
         t1 = time.perf_counter()
         text = asr_text_for_mt(self.asr[lang].transcribe(samples))
         t2 = time.perf_counter()
-        if forced and lang != "ja":
-            # SenseVoice ends every chunk with a period, even one cut mid-sentence ("On August. 15");
-            # a false period would split the English sentence at every cut.
+        if forced:
+            # The ASR models end every chunk with a period, even one cut mid-sentence ("On August. 15",
+            # "けがをしていて警察は。"); a false period would split the sentence at every cut. Japanese
+            # sentence endings are words (です, ました), so those still end a sentence without the period.
             text = re.sub(r"[.。]\s*$", "", text)
         noise = is_noise(text, lang, audio_s)
         if noise and relabeled is None:
@@ -484,10 +564,8 @@ class Engine:
             snaps = []
             for i, piece in enumerate(pieces):
                 if s is not None and s.chunks and ends_sentence(s.chunks[-1], lang) \
-                        and not continues_sentence(piece, lang) and (lang == "ja" or not s.last_forced):
+                        and not continues_sentence(piece, lang) and self._trusted_end(s):
                     # The previous chunk ended a sentence exactly at the cut ("…思いますか" | "やっぱ…").
-                    # Japanese endings are words, so they count even at a forced cut; Latin punctuation at
-                    # a forced cut is only an ASR guess.
                     self._close(channel, "end")
                     snaps.append(s.snapshot())
                     s = None
@@ -502,7 +580,7 @@ class Engine:
                 s.version += 1
                 s.audio_s += audio_s * len(piece) / max(1, len(text))
                 s.last_chunk_at = ended_at
-                s.last_forced = forced
+                s.last_forced, s.last_gap = forced, gap
                 s.timings.update(lid_ms=round(1000 * (t1 - t0)), asr_ms=round(1000 * (t2 - t1)))
                 self.pending[s.id] = s
                 last = i == len(pieces) - 1
@@ -516,6 +594,9 @@ class Engine:
                 self.pending[s.id] = s
                 snaps.append(s.snapshot())
             self.lock.notify_all()
+        cv = self.vads.get(channel)
+        if cv is not None:  # the next cut follows the language now being spoken
+            cv.set_quiet(self._chunk_quiet(channel, lang))
         for snap in snaps:
             self.on_event("heard", snap)
 
@@ -534,6 +615,28 @@ class Engine:
             snap = s.snapshot()
             self.lock.notify_all()
         self.on_event("heard", snap)
+
+    def _trusted_end(self, s: Sentence) -> bool:
+        """Does the ending of the last chunk really end the sentence? At the end of speech, yes. At a forced cut,
+        Latin punctuation is only an ASR guess; Japanese endings are words, but only a cut in a real pause
+        is trusted: a cut in the silence inside a word makes the ASR invent one ("作っ|たり" -> "作っています")."""
+        if not s.last_forced:
+            return True
+        return s.lang == "ja" and s.last_gap >= self.s.chunk_quiet_ja_s - 1e-6
+
+    def _drop(self, s: Sentence) -> None:
+        """Withdraw an open sentence that turned out to be in another language (its draft line disappears)."""
+        with self.lock:
+            if self.open.get(s.channel) is s:
+                del self.open[s.channel]
+            self.pending.pop(s.id, None)
+            self.sentence_audio.pop(s.id, None)
+            job = self.mt_job
+            if job and job[0] == s.id:
+                job[3].set()
+            s.dropped = True
+            snap = s.snapshot()
+        self.on_event("dropped", snap)
 
     def _new_sentence(self, channel: str, lang: str, started_at: float) -> Sentence:
         """Caller holds the lock."""
@@ -604,24 +707,38 @@ class Engine:
                     continue  # chunks still waiting for ASR may continue this sentence (slow CPU)
                 cv = self.vads.get(ch)
                 gap = self.s.sentence_gap_open_s if open_ended(s.text, s.lang) else self.s.sentence_gap_s
+                ended = False
                 if cv is not None:
                     # Real audio: trust the VAD. A cut at the fading end of a sentence is marked "forced",
                     # but if no speech follows, the pause is real.
                     quiet_for = now - max(s.last_chunk_at, cv.last_speech_at)
                     pause = not cv.speaking and quiet_for >= gap
+                    ended = (s.last_forced and s.lang == "ja" and ends_sentence(s.chunks[-1], s.lang)
+                             and cv.pause_after_cut_s >= self.s.sentence_end_pause_s)
                 else:
                     pause = not s.last_forced and now - s.last_chunk_at >= gap
-                if pause or now - s.last_chunk_at >= self.s.chunk_hard_s + 3:  # safety net
+                if ended:
+                    self._close(ch, "end")
+                elif pause or now - s.last_chunk_at >= self.s.chunk_hard_s + 3:  # safety net
                     self._close(ch, "pause" if pause else "timeout")
 
     # ---- translation ----
+    def _mt_load(self, window: float = 30.0) -> float:
+        """Caller holds the lock. Share of the last `window` seconds the translator was busy."""
+        now = time.time()
+        busy = sum(max(0.0, min(end, now) - max(start, now - window)) for start, end in self.mt_busy_log)
+        if self.mt_job is not None:
+            busy += now - max(self.mt_job_started, now - window)
+        return busy / window
+
     def _next_job(self) -> Sentence | None:
-        """Caller holds the lock. Oldest sentence first; drafts only when enabled."""
+        """Caller holds the lock. Oldest sentence first; drafts only when enabled and the translator keeps up."""
+        drafts = self.s.drafts and self._mt_load() < self.s.draft_max_load
         for sid in sorted(self.pending):
             s = self.pending[sid]
             if s.rescoring:
                 continue
-            if s.needs_translation and (s.closed or self.s.drafts):
+            if s.needs_translation and (s.closed or drafts):
                 return s
             if s.final:
                 return s  # needs its final event only
@@ -637,7 +754,7 @@ class Engine:
             if now - last[0] < 0.1:
                 return
             with self.lock:
-                if job.translation and len(text) < len(job.translation):
+                if job.dropped or (job.translation and len(text) < len(job.translation)):
                     return
                 job.partial = text
                 if job.closed and "final_first_ms" not in job.timings:
@@ -662,6 +779,7 @@ class Engine:
                 if job.closed and needs:  # final translation: how long it waited after the close
                     job.timings["final_start_ms"] = round(1000 * (time.time() - job.last_chunk_at))
                 self.mt_job = (job.id, not job.closed, version, cancel)
+                self.mt_job_started = time.time()
             tr, failed = None, False
             t0 = time.perf_counter()
             try:
@@ -677,11 +795,12 @@ class Engine:
                 self.mt_job = None
                 job.partial = None
                 if needs:
+                    self.mt_busy_log.append((self.mt_job_started, time.time()))
                     kind = "cancelled" if cancel.is_set() and tr is None else "draft" if not job.closed else "final"
                     self.mt_stats[kind] += 1
                     self.mt_stats[kind + "_s"] += time.perf_counter() - t0
-                if cancel.is_set() and tr is None:
-                    continue  # no event: the final translation is next in line
+                if (cancel.is_set() and tr is None) or job.dropped:
+                    continue  # no event: the final translation is next in line, or the sentence was withdrawn
                 if tr is not None and version >= job.translated_version:
                     job.translation = tr.text
                     job.translated_version = version

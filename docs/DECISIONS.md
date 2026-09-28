@@ -170,14 +170,82 @@ prints the translator's time split (drafts / finals / cancelled work).
   ("…ですね" | next words) is only closed when the next chunk has been recognised (3-6 s later), because
   "…ですけど", "…ますが" would continue it. Its full translation is already on screen as a grey draft.
 
+## Round 4: real recordings ("slow and wrong")
+
+A 4-minute TBS news clip (`.cache/clips/ja_news.wav`, recorded with `scripts/record_system.py`, reference =
+YouTube's auto captions, which have their own errors) and the street interview were replayed through the app
+and read sentence by sentence. `scripts/compare_asr_clip.py` compares ASR models on the app's own chunks,
+`scripts/score_replay.py` scores a replayed session.
+
+What was wrong, by cause:
+- **Language ID locked a whole sentence into the wrong language**: the first 3.1 s of news were heard as
+  Vietnamese and, being longer than 2 s, trusted; 14 s were lost. Now a first sentence or a switch of language is
+  confirmed on the next chunk (every later chunk, alone or together, was Japanese).
+- **Speech in another language became fluent invented Vietnamese**: a Nepali interview inside the news was
+  recognised as Japanese/English nonsense and translated. Whisper does say "ne"/"tl" there, but that answer
+  used to *confirm* the Japanese label. Now a sentence clearly in another language (not zh/yue/ko, which
+  Whisper confuses with Japanese) is dropped and its draft line removed.
+- **False periods from the Japanese ASR**: parakeet ends every chunk with "。", even "けがをしていて警察は。";
+  the sentence was split there and the translator invented the missing half. Periods at forced cuts are now
+  dropped for every language (polite endings like です/ました still end a sentence).
+- **Cuts inside Japanese words**: the silence of っ, /k/, /t/ closures (60-150 ms) passed the 64 ms "gap
+  between words" test, so words were cut in two ("電話をかけ|かけ", "出血性|性ショック") and the ASR hallucinated
+  endings at the cut ("1400人を超え" -> "超えています", "作っ|たり" -> "作っています"), which then ended the
+  sentence. reazonspeech-k2 has the same problem at cuts (same CER on the clip), so the ASR model is not the
+  fix. Three changes, chosen with `scripts/sweep_cuts.py` (chunk-level CER) and whole-pipeline runs:
+  - Japanese needs 192 ms of quiet to cut, relaxed towards 64 ms as the chunk nears the 5 s hard limit (a
+    fixed 192 ms left read speech without a place to cut: hard cuts mid-word lost "安全に泳ぐこと" once).
+    English keeps 64 ms (longer English chunks get false periods inside: FLEURS en→vi 0.872 vs 0.878).
+  - A Japanese ending at a cut ends the sentence only if the cut was a real pause (>= 192 ms); at a shorter
+    gap it is probably invented.
+  - Whole-sentence re-recognition up to 16 s instead of 10 s (only Japanese is re-recognised now); the longer,
+    unsplit sentences otherwise kept every garbled join.
+- **Slow closes in continuous speech**: news sentences end at a cut ("…ました") and waited 3-5 s for the next
+  chunk; background music keeps the VAD from reporting the pause. The pause is now measured against the voice
+  level; a Japanese sentence ending followed by 0.35 s of quiet closes the sentence.
+
+| TBS news clip, whole pipeline, full CPU | text error | fragments | invented sentences | lag p50 / p90 |
+|---|---|---|---|---|
+| before this round | 29.8% | 3 | 2 | 3.8 / 7.0 s |
+| + language re-check, false periods, pause after an ending | 20.1% | 3 | 2 | 2.4 / 5.0 s |
+| + another language is dropped | 16.5% | 3 | 0 | 3.0 / 5.0 s |
+| + 192 ms cuts for Japanese (fixed) | 11.6% | 1 | 0 | 2.9 / 5.1 s |
+| **final: 192 ms relaxing to 64 ms, endings trusted only at pauses, re-recognition up to 16 s** | **12.0%** | **0** | **0** | 2.5 / 3.3 s |
+
+| FLEURS live (30 utterances, 4 E-cores) | ja CER | COMET ja→vi | COMET en→vi | lag p50 / p90 |
+|---|---|---|---|---|
+| v0.3.0 | 9.4% | 0.858 | 0.878 | 4.6 / 7.0 s |
+| fixed 192 ms (`v13-all`) | 9.6% | 0.854 | 0.880 | 4.9 / 7.1 s |
+| relaxing cuts + trusted endings (`v15-ramp-trust`) | 8.2% | 0.863 | 0.879 | 4.8 / 7.3 s |
+| **+ re-recognition up to 16 s (`v17-load-guard`, final)** | **6.6%** | **0.865** | 0.879 | 4.9 / 8.8 s |
+
+Dense news on 4 E-cores stays 12-16 s behind whatever the settings (spinning threads off, 3 translation
+threads, 1 ASR thread: no change): the final translations alone keep the translator ~60% busy and are long
+(110 characters of Japanese -> 336 of Vietnamese in 15 s). The same clip on the desktop: 2.5 / 3.3 s. Drafts
+pause while the translator is over 85% busy; that halves the wasted draft work but does not change the lag.
+
+Translation errors that remain are the model's own (HY-MT1.5-1.8B): "アルバイト" -> "tên trộm",
+"頭を切りつけられる" -> "bị cắt đầu", "夫に腕をつかまれた" with the roles reversed, "手塚さん" given a male title.
+Tried and rejected, measured:
+- **Context from earlier sentences** (BSD business dialogues, JA→EN, 315 sentences, COMET): none 0.812;
+  HY-MT's own contextual prompt 0.769 (1 sentence) / 0.741 (2) — the 1.8B model translates the context too
+  ("え、私が？" -> "Oh, I… Mr. Mori, it's a phone call in English…"); earlier sentences as chat history
+  0.809 / 0.810. Kept in `mt.py` and `scripts/run_context_mt.py` for re-testing with another model.
+- **Translating through English** (ja→en→vi): fixed 3 of the 6 news errors above but not on average
+  (FLEURS ja→vi COMET 0.868 vs 0.869 direct; vi→ja 0.895 vs 0.889 with 4% vs 1% bad) at twice the time.
+
 ## Known limitations
+
+- On a 4-core office PC, continuous dense speech (TV news) runs 12-16 s behind; conversation with pauses 2-6 s.
+- Two people talking without a pause end up in one sentence (question and answer); there is no speaker
+  separation.
 
 - A one-chunk sentence shorter than 2 s right after a language switch can still be recognised in the previous
   language (language ID is unreliable on so little audio).
 - HY-MT-1.8B still errs on idioms, names and long ASR-garbled sentences (わびさび, ドラえもん, a negation inside a
   run-on sentence). A 4B model fixes some of these but is ~2.5x slower on office CPUs.
 - Per-application capture (only Zoom, only the browser) is not implemented yet; the whole system output is captured.
-- Tested on FLEURS and synthetic playback; still needs real call/meeting recordings.
+- Tested on FLEURS, a TV news clip and a street interview; still needs real call/meeting recordings.
 
 ## Must-haves found during testing
 

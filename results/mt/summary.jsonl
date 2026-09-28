@@ -52,3 +52,5 @@
 {"engine": "hy-mt-1.8b-iq4nl", "src": "en", "tgt": "vi", "n": 100, "chrf": 53.03, "flag_rate": 4.0, "p50_ms": 1630, "p95_ms": 2633, "tok_per_s": 31.8, "avg_cores": 3.97, "ram_mb": 2042, "threads": 4}
 {"engine": "hy-mt-1.8b-iq4nl", "src": "vi", "tgt": "ja", "n": 100, "chrf": 31.99, "flag_rate": 1.0, "p50_ms": 1596, "p95_ms": 2807, "tok_per_s": 29.4, "avg_cores": 3.97, "ram_mb": 2044, "threads": 4}
 {"engine": "hy-mt-1.8b-iq4nl", "src": "vi", "tgt": "en", "n": 100, "chrf": 57.98, "flag_rate": 0.0, "p50_ms": 1126, "p95_ms": 1890, "tok_per_s": 26.7, "avg_cores": 3.97, "ram_mb": 2044, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl-pivot", "src": "ja", "tgt": "vi", "n": 100, "chrf": 45.81, "flag_rate": 1.0, "p50_ms": 4526, "p95_ms": 8316, "tok_per_s": 19.0, "avg_cores": 3.96, "ram_mb": 2042, "threads": 4}
+{"engine": "hy-mt-1.8b-iq4nl-pivot", "src": "vi", "tgt": "ja", "n": 100, "chrf": 32.39, "flag_rate": 4.0, "p50_ms": 4458, "p95_ms": 7685, "tok_per_s": 17.6, "avg_cores": 3.96, "ram_mb": 2044, "threads": 4}

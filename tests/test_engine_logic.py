@@ -3,7 +3,7 @@ import time
 
 import numpy as np
 
-from transvoice.engine import (Engine, Settings, _ChannelVad, ends_sentence, is_noise, open_ended,
+from transvoice.engine import (Engine, Sentence, Settings, _ChannelVad, ends_sentence, is_noise, open_ended,
                                split_sentences)
 from transvoice.mt import Translation, TranslationCancelled
 
@@ -59,6 +59,43 @@ def test_false_period_at_forced_english_cut_is_ignored():
     assert finals[1].text == "Next sentence starts here."
 
 
+def test_false_period_at_forced_japanese_cut_is_ignored():
+    # parakeet-ja also ends every chunk with "。"; a news sentence cut after "警察は" must not end there.
+    chunks = ["そして、けがをしていて警察は。", "長男に対する殺人未遂の疑いで捜査しています。", "次のニュースです。"]
+    _, _, finals = _run(chunks, forced=[True, False, False], gap=0.1, wait_finals=2, rescore_final=False)
+    assert finals[0].text == "そして、けがをしていて警察は長男に対する殺人未遂の疑いで捜査しています。"
+    assert finals[1].text == "次のニュースです。"
+
+
+def test_ending_invented_at_a_cut_inside_a_word_does_not_end_the_sentence():
+    # "避難場所を作っ|たり": cut in the silence of っ (a 64 ms gap), the ASR hears "作っています". An ending at a
+    # cut that was not a real pause is not trusted; the sentence goes on.
+    events, done = [], threading.Event()
+
+    def on_event(kind, payload):
+        events.append((kind, payload))
+        if kind == "translated" and payload.final:
+            done.set()
+
+    e = Engine(Settings(my_lang="vi", their_lang="ja", sentence_gap_s=0.3, rescore_final=False), on_event)
+    e.asr = {"ja": FakeAsr(["学校では避難場所を作っています", "たり被災者を受け入れたりしています。"])}
+    e.mt = FakeMt()
+    e._start_workers()
+    e._enqueue("them", np.full(24000, 0, np.float32), time.time(), True, 0.064)
+    time.sleep(0.1)
+    e._enqueue("them", np.full(24000, 1, np.float32), time.time(), False)
+    assert done.wait(5)
+    e.stop()
+    finals = [p for k, p in events if k == "translated" and p.final]
+    assert finals[0].text == "学校では避難場所を作っていますたり被災者を受け入れたりしています。"
+
+
+def test_polite_ending_at_forced_japanese_cut_still_ends_the_sentence():
+    chunks = ["25歳の父親が逮捕されました。", "これは現場近くの映像です。"]
+    _, _, finals = _run(chunks, forced=[True, False], gap=0.1, wait_finals=2, rescore_final=False)
+    assert [f.text for f in finals] == ["25歳の父親が逮捕されました", "これは現場近くの映像です。"]
+
+
 def test_chunk_spanning_two_sentences_is_split():
     chunks = ["日本のいいところは何だと思いますか。やっぱり", "食べ物がおいしいです"]
     e, events, finals = _run(chunks, forced=[True, False], gap=0.1, wait_finals=2)
@@ -79,13 +116,77 @@ class FakeLid:
 
 def test_language_routing_with_auto_detection():
     e = _engine(my_lang="vi", their_lang="auto")
-    e.lid = FakeLid(["ja", "ko", "en"])
-    long_clip = [0.0] * 32000  # 2 s: enough audio to trust language ID
-    assert e._language("them", long_clip) == ("ja", True)
+    e.lid = FakeLid(["ja", "ko", "en", "en"])
+    long_clip = [0.0] * 32000  # 2 s: enough audio to trust language ID when it agrees with the last sentence
+    assert e._language("them", long_clip) == ("ja", False)  # first sentence: nothing to agree with yet
     assert e._language("them", long_clip) == ("ja", False)  # "ko" is not allowed -> unconfirmed guess
     assert e._language("them", [0.0] * 8000) == ("ja", False)  # short clip -> no LID call, reuse last
+    assert e._language("them", long_clip) == ("en", False)  # a switch is re-checked on more audio
     assert e._language("them", long_clip) == ("en", True)
     assert e._language("me", long_clip) == ("vi", True)
+
+
+def _foreign_run(lid_answers, chunks, their_last="ja"):
+    events = []
+    e = Engine(Settings(my_lang="vi", their_lang="auto", sentence_gap_s=0.3), lambda k, p: events.append((k, p)))
+    e.their_last = their_last
+    e.lid = FakeLid(lid_answers)
+    e.asr = {"ja": FakeAsr(["明日の気にナスタンバイ", "ナラメルはい中には", "今日は晴れです"]),
+             "en": FakeAsr(["x", "y", "z"]), "vi": FakeAsr(["x", "y", "z"])}
+    e.mt = FakeMt(delay=0.3)
+    e._start_workers()
+    for i, (seconds, forced) in enumerate(chunks):
+        e._enqueue("them", np.full(int(seconds * 16000), i, np.float32), time.time(), forced)
+        time.sleep(0.4)
+    time.sleep(1.0)
+    e.stop()
+    return e, events
+
+
+def test_foreign_speech_is_not_translated():
+    # A Nepali interview inside Japanese news: language ID says "ne" on 4 s of audio.
+    e, events = _foreign_run(["ne"], [(4.0, True)])
+    assert not [p for k, p in events if k == "translated"] and e.open == {} and e.pending == {}
+
+
+def test_foreign_speech_after_a_short_first_chunk_is_dropped():
+    # The first 0.6 s ("えっと") is too short for language ID and inherits Japanese; with more audio the
+    # sentence turns out to be Nepali. Its draft line is withdrawn and it is never translated as final.
+    e, events = _foreign_run(["ne"], [(0.6, True), (4.0, True)])
+    assert [k for k, _ in events if k == "dropped"]
+    assert not [p for k, p in events if k == "translated" and p.final]
+    assert e.open == {} and e.pending == {}
+
+
+def test_chinese_guess_on_japanese_speech_is_kept():
+    # Whisper often hears Japanese as Chinese: that is not a reason to drop it.
+    e, events = _foreign_run(["zh", "ja"], [(4.0, True), (3.0, False)])
+    finals = [p for k, p in events if k == "translated" and p.final]
+    assert finals and finals[0].lang == "ja"
+
+
+def test_wrong_language_on_a_long_first_chunk_is_rechecked():
+    # News clip: Whisper heard the first 3.1 s as Vietnamese; with the next chunk it is clearly Japanese.
+    events, done = [], threading.Event()
+
+    def on_event(kind, payload):
+        events.append((kind, payload))
+        if kind == "translated" and payload.final:
+            done.set()
+
+    e = Engine(Settings(my_lang="vi", their_lang="auto", sentence_gap_s=0.3), on_event)
+    e.lid = FakeLid(["vi", "ja"])
+    e.asr = {"vi": FakeAsr(["Tính xem đến", "mặt mũi"]),
+             "ja": FakeAsr(["などした事件で", "女性の死因は出血性ショックだったことが分かりました"])}
+    e.mt = FakeMt()
+    e._start_workers()
+    e._enqueue("them", np.full(49600, 0, np.float32), time.time(), True)
+    time.sleep(0.2)
+    e._enqueue("them", np.full(64000, 1, np.float32), time.time(), False)
+    assert done.wait(5)
+    e.stop()
+    final = [p for k, p in events if k == "translated" and p.final][0]
+    assert final.lang == "ja" and final.text == "などした事件で女性の死因は出血性ショックだったことが分かりました"
 
 
 def test_short_first_chunk_in_wrong_language_is_relabeled():
@@ -159,6 +260,19 @@ def test_single_quiet_window_does_not_cut():
     x[int(2.6 * 16000) : int(2.6 * 16000) + 400] *= 0.01  # 25 ms dip: inside a word, not a pause
     _ChannelVad(fake, soft_s=2.0, hard_s=4.0).accept(x)
     assert len(fake.cuts) == 1 and fake.cuts[0] >= 3.0
+
+
+def test_pause_after_a_cut_is_measured():
+    # Speech, a 0.5 s pause at 2.6 s, speech again: right after the cut the pause is visible; once the speaker
+    # resumes it is gone. (With background music the VAD never reports silence, so the level is what counts.)
+    fake = FakeVad()
+    cv = _ChannelVad(fake, soft_s=2.0, hard_s=4.0, quiet_s=0.064)
+    x = _speech_with_pause(4.5, pause_at_s=2.6)
+    x[int(2.6 * 16000) : int(3.1 * 16000)] *= 0.01
+    cv.accept(x[: int(3.0 * 16000)])
+    assert len(fake.cuts) == 1 and cv.pause_after_cut_s >= 0.3
+    cv.accept(x[int(3.0 * 16000) :])
+    assert cv.pause_after_cut_s == 0
 
 
 def test_long_speech_without_pause_is_cut_at_hard_limit():
@@ -276,6 +390,56 @@ def test_final_uses_whole_sentence_recognition():
     assert final.text == "日本は一番新鮮な魚です" and final.translation == "<日本は一番新鮮な魚です>"
 
 
+class StubVad:
+    """The live VAD state _close_quiet_sentences reads: music under the voice keeps `speaking` True."""
+
+    def __init__(self, pause_after_cut_s):
+        self.speaking, self.last_speech_at, self.pause_after_cut_s = True, time.time(), pause_after_cut_s
+
+
+def test_japanese_needs_a_longer_gap_to_cut():
+    # っ/k/t closures inside Japanese words are silent for 60-150 ms: Japanese cuts wait for 192 ms of quiet.
+    e = _engine(my_lang="vi", their_lang="auto")
+    e.lid = FakeLid(["ja", "en"])
+    e.asr = {"ja": FakeAsr(["電話をかけました"]), "en": FakeAsr(["Hello there"])}
+    cv = e._vad_for("them")
+    assert cv.quiet_windows == 2  # nothing heard yet
+    e._add_chunk("them", np.full(48000, 0, np.float32), time.time(), False)
+    assert cv.quiet_windows == 6
+    e._add_chunk("them", np.full(48000, 0, np.float32), time.time(), False)
+    assert cv.quiet_windows == 2
+
+
+def _news_sentence(pause_after_cut_s):
+    events, done = [], threading.Event()
+
+    def on_event(kind, payload):
+        events.append((kind, payload))
+        if kind == "translated" and payload.final:
+            done.set()
+
+    e = Engine(Settings(my_lang="vi", their_lang="ja", rescore_final=False), on_event)
+    e.asr = {"ja": FakeAsr(["25歳の父親が逮捕されました。"])}
+    e.mt = FakeMt()
+    e.vads["them"] = StubVad(pause_after_cut_s)
+    e._start_workers()
+    e._enqueue("them", np.full(24000, 0, np.float32), time.time(), True)  # cut right after the ending
+    closed = done.wait(1.5)
+    e.stop()
+    return closed, [p for k, p in events if k == "translated" and p.final]
+
+
+def test_sentence_ending_followed_by_a_pause_closes_without_waiting_for_the_next_chunk():
+    closed, finals = _news_sentence(pause_after_cut_s=0.5)
+    assert closed and finals[0].text == "25歳の父親が逮捕されました" and finals[0].timings["close"] == "end"
+
+
+def test_sentence_ending_without_a_pause_waits_for_the_next_chunk():
+    # "…ました" + no pause: the next words may still be "が、…" (continuing the sentence).
+    closed, _ = _news_sentence(pause_after_cut_s=0.0)
+    assert not closed
+
+
 def test_rescore_can_be_disabled():
     chunks = ["日本は一番", "一番新鮮な魚です"]
     _, _, finals = _run(chunks, forced=[True, False], gap=0.1, rescore_final=False)
@@ -310,6 +474,23 @@ def test_final_is_not_stuck_behind_the_next_sentences_draft():
     done = [(p.id, p.final) for k, p in events if k == "translated"]
     first_b = next((i for i, (sid, _) in enumerate(done) if sid != a.id), len(done))
     assert done.index((a.id, True)) < first_b
+
+
+def test_drafts_pause_while_the_translator_is_overloaded():
+    # Dense news on 4 slow cores: finals alone keep the translator 60% busy; drafts and the drafts cancelled by
+    # finals pushed it to 96% and the lag grew to 12-17 s. While it is that busy, only finals are translated.
+    e = _engine(my_lang="vi", their_lang="ja")
+    now = time.time()
+    open_s = Sentence(1, "them", "ja", "vi", started_at=now, chunks=["明日の会議には"], version=1)
+    e.pending[1] = open_s
+    e.mt_busy_log.extend([(now - 30, now - 2)])  # busy 28 of the last 30 s
+    assert e._next_job() is None  # the draft waits
+    closed = Sentence(2, "them", "ja", "vi", started_at=now, chunks=["参加できません"], version=1, closed=True)
+    e.pending[2] = closed
+    assert e._next_job() is closed  # finals always go
+    e.mt_busy_log.clear()
+    e.mt_busy_log.append((now - 30, now - 20))  # busy 10 of 30 s
+    assert e._next_job() is open_s
 
 
 def test_partial_translation_streams_and_never_shrinks_a_draft():

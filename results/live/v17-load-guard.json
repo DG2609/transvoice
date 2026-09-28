@@ -1,0 +1,49 @@
+{
+  "name": "v17-load-guard",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "mt_model": "HY-MT1.5-1.8B.i1-IQ4_NL.gguf",
+  "mt_threads": 4,
+  "asr_threads": 2,
+  "set": [
+    "rescore_max_s=16"
+  ],
+  "asr_error": {
+    "ja": 6.57,
+    "en": 17.0
+  },
+  "sentences_per_utt": {
+    "ja": 1.2,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.72,
+    "en": 1.11
+  },
+  "final_lag_p50_ms": 4906,
+  "final_lag_p90_ms": 8824,
+  "stages_ms": {
+    "close_ms": 966,
+    "final_start_ms": 1644,
+    "final_first_ms": 3096,
+    "final_mt_ms": 3708
+  },
+  "final_needed_extra_mt": "36/36",
+  "close_reasons": {
+    "end": 19,
+    "max": 2,
+    "pause": 13,
+    "split": 2
+  },
+  "machine_cpu_avg_pct": 20,
+  "mt_stats": {
+    "cancelled": 15,
+    "cancelled_s": 44.6,
+    "draft": 33,
+    "draft_s": 87.0,
+    "final": 36,
+    "final_s": 139.9
+  }
+}

@@ -113,6 +113,7 @@ COMET = wmt22-comet-da (higher is better). Bad % = COMET < 0.65 or a broken-outp
 | qwen3.5-4b | 0.8791 | 0.0 | 48.75 | 0.0 | 9128 | 15338 | 4167 | 3.97 |
 | translategemma-4b | 0.8782 | 2.0 | 47.25 | 2.0 | 8259 | 14332 | 7071 | 3.94 |
 | hy-mt-1.8b-iq4nl | 0.8693 | 1.0 | 45.03 | 1.0 | 1800 | 3559 | 2042 | 3.97 |
+| hy-mt-1.8b-iq4nl-pivot | 0.8679 | 1.0 | 45.81 | 1.0 | 4526 | 8316 | 2042 | 3.96 |
 | hy-mt-1.8b-q4_0 | 0.8663 | 2.0 | 44.86 | 2.0 | 1752 | 2952 | 2032 | 3.98 |
 | hy-mt-1.8b | 0.865 | 1.0 | 44.61 | 1.0 | 3830 | 7568 | 3255 | 3.96 |
 | nllb-1.3b | 0.8605 | 1.0 | 48.22 | 1.0 | 2593 | 6205 | 1565 | 3.41 |
@@ -136,6 +137,7 @@ COMET = wmt22-comet-da (higher is better). Bad % = COMET < 0.65 or a broken-outp
 
 | engine | COMET | bad % | chrF | flag % | p50 ms | p95 ms | RAM MB | CPU cores |
 |---|---|---|---|---|---|---|---|---|
+| hy-mt-1.8b-iq4nl-pivot | 0.8954 | 4.0 | 32.39 | 4.0 | 4458 | 7685 | 2044 | 3.96 |
 | hy-mt-1.8b | 0.8901 | 1.0 | 31.86 | 1.0 | 4136 | 7834 | 5108 | 3.86 |
 | qwen3.5-4b | 0.8895 | 0.0 | 30.93 | 0.0 | 4336 | 6724 | 4167 | 3.98 |
 | translategemma-4b | 0.8893 | 1.0 | 32.31 | 1.0 | 7754 | 12982 | 7353 | 3.96 |
@@ -161,6 +163,15 @@ Final subtitles only. Lag = time from the speaker's last chunk to the final tran
 | base | 12,13,14,15 | True | False | ja:7.84 en:16.43 | en→vi:0.8056 ja→vi:0.8622 | en:6.7 ja:6.7 | 4879 | 14695 |
 | mt-fast | 12,13,14,15 | True | True | ja:7.84 en:16.43 | en→vi:0.8125 ja→vi:0.8614 | en:6.7 ja:6.7 | 4250 | 12488 |
 | no-rescore | 12,13,14,15 | False | False | ja:9.86 en:17.28 | en→vi:0.8043 ja→vi:0.8426 | en:6.7 ja:0.0 | 4404 | 8085 |
+| v10-max8 | 12,13,14,15 | True | True | ja:8.85 en:17.28 | en→vi:0.8734 ja→vi:0.8572 | en:0.0 ja:0.0 | 4676 | 6836 |
+| v11-quiet192 | 12,13,14,15 | True | True | ja:9.61 en:14.45 | en→vi:0.8724 ja→vi:0.8546 | en:0.0 ja:0.0 | 5058 | 7061 |
+| v12-period-endpause | 12,13,14,15 | True | True | ja:9.36 en:17.28 | en→vi:0.8784 ja→vi:0.8619 | en:0.0 ja:0.0 | 4800 | 6790 |
+| v13-all | 12,13,14,15 | True | True | ja:9.61 en:16.15 | en→vi:0.8795 ja→vi:0.8544 | en:0.0 ja:0.0 | 4923 | 7096 |
+| v14a-ramp | 12,13,14,15 | True | True | ja:8.22 en:17.0 | en→vi:0.8786 ja→vi:0.862 | en:0.0 ja:0.0 | 4698 | 7035 |
+| v14b-fixed-rescore14 | 12,13,14,15 | True | True | ja:9.1 en:16.15 | en→vi:0.8795 ja→vi:0.8555 | en:0.0 ja:0.0 | 4923 | 7348 |
+| v15-ramp-trust | 12,13,14,15 | True | True | ja:8.22 en:17.0 | en→vi:0.8786 ja→vi:0.8633 | en:0.0 ja:0.0 | 4754 | 7254 |
+| v16-rescore16 | 12,13,14,15 | True | True | ja:6.57 en:17.0 | en→vi:0.8786 ja→vi:0.8645 | en:0.0 ja:0.0 | 4900 | 8911 |
+| v17-load-guard | 12,13,14,15 | True | True | ja:6.57 en:17.0 | en→vi:0.8786 ja→vi:0.8645 | en:0.0 ja:0.0 | 4906 | 8824 |
 | v2 | 12,13,14,15 | True | False | ja:9.36 en:14.73 | en→vi:0.8776 ja→vi:0.8583 | en:0.0 ja:0.0 | 8474 | 15031 |
 | v3-stages | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8574 | en:0.0 ja:0.0 | 6104 | 9310 |
 | v3 | 12,13,14,15 | True | True | ja:9.36 en:14.73 | en→vi:0.8799 ja→vi:0.8574 | en:0.0 ja:0.0 | 6164 | 9140 |
@@ -172,6 +183,7 @@ Final subtitles only. Lag = time from the speaker's last chunk to the final tran
 | v7-gap05 | 12,13,14,15 | True | True | ja:9.36 en:15.3 | en→vi:0.8638 ja→vi:0.8584 | en:0.0 ja:0.0 | 5358 | 7505 |
 | v7-norescore | 12,13,14,15 | False | True | ja:9.86 en:17.28 | en→vi:0.8784 ja→vi:0.8334 | en:0.0 ja:6.7 | 4199 | 6425 |
 | v8-rescore-ja | 12,13,14,15 | True | True | ja:9.36 en:17.28 | en→vi:0.8784 ja→vi:0.8584 | en:0.0 ja:0.0 | 4428 | 6919 |
+| v9-preempt | 12,13,14,15 | True | True | ja:9.36 en:17.28 | en→vi:0.8784 ja→vi:0.8584 | en:0.0 ja:0.0 | 4558 | 7041 |
 
 ## Stability
 

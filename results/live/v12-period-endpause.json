@@ -1,0 +1,47 @@
+{
+  "name": "v12-period-endpause",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "mt_model": "HY-MT1.5-1.8B.i1-IQ4_NL.gguf",
+  "mt_threads": 4,
+  "asr_threads": 2,
+  "set": [],
+  "asr_error": {
+    "ja": 9.36,
+    "en": 17.28
+  },
+  "sentences_per_utt": {
+    "ja": 1.33,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.8,
+    "en": 1.11
+  },
+  "final_lag_p50_ms": 4800,
+  "final_lag_p90_ms": 6790,
+  "stages_ms": {
+    "close_ms": 880,
+    "final_start_ms": 1502,
+    "final_first_ms": 2810,
+    "final_mt_ms": 3683
+  },
+  "final_needed_extra_mt": "36/38",
+  "close_reasons": {
+    "end": 22,
+    "max": 2,
+    "pause": 13,
+    "split": 1
+  },
+  "machine_cpu_avg_pct": 21,
+  "mt_stats": {
+    "cancelled": 15,
+    "cancelled_s": 39.1,
+    "draft": 36,
+    "draft_s": 95.1,
+    "final": 36,
+    "final_s": 129.2
+  }
+}

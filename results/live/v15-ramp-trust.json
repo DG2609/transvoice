@@ -1,0 +1,47 @@
+{
+  "name": "v15-ramp-trust",
+  "cpus": "12,13,14,15",
+  "rescore": true,
+  "mt_fast": true,
+  "drafts": true,
+  "mt_model": "HY-MT1.5-1.8B.i1-IQ4_NL.gguf",
+  "mt_threads": 4,
+  "asr_threads": 2,
+  "set": [],
+  "asr_error": {
+    "ja": 8.22,
+    "en": 17.0
+  },
+  "sentences_per_utt": {
+    "ja": 1.2,
+    "en": 1.2
+  },
+  "drafts_per_sentence": {
+    "ja": 0.72,
+    "en": 1.17
+  },
+  "final_lag_p50_ms": 4754,
+  "final_lag_p90_ms": 7254,
+  "stages_ms": {
+    "close_ms": 962,
+    "final_start_ms": 1306,
+    "final_first_ms": 2804,
+    "final_mt_ms": 3552
+  },
+  "final_needed_extra_mt": "36/36",
+  "close_reasons": {
+    "end": 19,
+    "max": 2,
+    "pause": 13,
+    "split": 2
+  },
+  "machine_cpu_avg_pct": 20,
+  "mt_stats": {
+    "cancelled": 12,
+    "cancelled_s": 33.0,
+    "draft": 34,
+    "draft_s": 86.3,
+    "final": 36,
+    "final_s": 136.1
+  }
+}
