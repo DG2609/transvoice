@@ -42,6 +42,10 @@ MANIFEST = {
     "moonshine-vi": {"kind": "tar", "dir": "asr",
                      "url": f"{SHERPA}/sherpa-onnx-moonshine-base-vi-quantized-2026-02-27.tar.bz2"},
     "silero-vad": {"kind": "files", "dir": "vad", "base": SHERPA, "files": ["silero_vad.onnx"]},
+    # Speaker embeddings (tried for splitting sentences at a change of speaker; see docs/DECISIONS.md).
+    "speaker-campplus": {"kind": "files", "dir": "spk",
+                         "base": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models",
+                         "files": ["3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"]},
     # Spoken language identification (Whisper encoder/decoder used only for LID)
     "whisper-tiny-lid": {"kind": "files", "dir": "lid/whisper-tiny",
                          "base": f"{HF}/csukuangfj/sherpa-onnx-whisper-tiny/resolve/main",

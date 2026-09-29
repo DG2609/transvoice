@@ -445,9 +445,8 @@ class Engine:
         return (lang not in self.s.langs and lang not in self.LID_CONFUSABLE
                 and samples_n >= self.LID_CONFIRM_S * SAMPLE_RATE)
 
-    def _language(self, channel: str, samples: np.ndarray) -> tuple[str | None, bool]:
-        """(language, confirmed); None = a language we do not translate. Unconfirmed guesses are re-checked
-        once the sentence has more audio."""
+    def _language(self, channel: str, samples: np.ndarray) -> tuple[str, bool]:
+        """(language, confirmed). Unconfirmed guesses are re-checked once the sentence has more audio."""
         if channel == "me":
             return self.s.my_lang, True
         if self.s.their_lang != "auto":
@@ -461,8 +460,8 @@ class Engine:
             agrees = lang == self.their_last
             self.their_last = lang
             return lang, agrees and len(samples) >= self.LID_CONFIRM_S * SAMPLE_RATE
-        if self._foreign(lang, len(samples)):
-            return None, True
+        # Another language on one chunk is only a suspicion (street noise can sound like anything): the sentence
+        # keeps the last language, unconfirmed, and is dropped only if the check on more audio agrees.
         return self.their_last or next(l for l in self.s.langs if l != self.s.my_lang), False
 
     def _recheck_language(self, s: Sentence, audio: list[np.ndarray]) -> tuple[str | None, bool, list[str] | None]:

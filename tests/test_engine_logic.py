@@ -144,9 +144,17 @@ def _foreign_run(lid_answers, chunks, their_last="ja"):
 
 
 def test_foreign_speech_is_not_translated():
-    # A Nepali interview inside Japanese news: language ID says "ne" on 4 s of audio.
-    e, events = _foreign_run(["ne"], [(4.0, True)])
-    assert not [p for k, p in events if k == "translated"] and e.open == {} and e.pending == {}
+    # A Nepali interview inside Japanese news: language ID says "ne" on the first 4 s and again on more audio.
+    e, events = _foreign_run(["ne", "ne"], [(4.0, True), (3.0, True)])
+    assert not [p for k, p in events if k == "translated" and p.final] and e.open == {} and e.pending == {}
+    assert [k for k, _ in events if k == "dropped"]
+
+
+def test_one_foreign_guess_is_not_enough_to_drop_speech():
+    # Street noise: Whisper guesses "tl" on one Japanese chunk; with more audio it hears Japanese again.
+    e, events = _foreign_run(["tl", "ja"], [(4.0, True), (3.0, False)])
+    assert not [k for k, _ in events if k == "dropped"]
+    assert [p for k, p in events if k == "translated" and p.final]
 
 
 def test_foreign_speech_after_a_short_first_chunk_is_dropped():

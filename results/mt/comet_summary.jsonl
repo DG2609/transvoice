@@ -71,6 +71,8 @@
 {"engine": "live-v16-rescore16", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8645, "bad_rate": 0.0}
 {"engine": "live-v17-load-guard", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8786, "bad_rate": 0.0}
 {"engine": "live-v17-load-guard", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8645, "bad_rate": 0.0}
+{"engine": "live-v18-speaker", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8786, "bad_rate": 0.0}
+{"engine": "live-v18-speaker", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8653, "bad_rate": 0.0}
 {"engine": "live-v2", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8776, "bad_rate": 0.0}
 {"engine": "live-v2", "src": "ja", "tgt": "vi", "n": 15, "comet": 0.8583, "bad_rate": 0.0}
 {"engine": "live-v3-stages", "src": "en", "tgt": "vi", "n": 15, "comet": 0.8799, "bad_rate": 0.0}

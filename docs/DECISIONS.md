@@ -234,6 +234,20 @@ Tried and rejected, measured:
 - **Translating through English** (ja→en→vi): fixed 3 of the 6 news errors above but not on average
   (FLEURS ja→vi COMET 0.868 vs 0.869 direct; vi→ja 0.895 vs 0.889 with 4% vs 1% bad) at twice the time.
 
+### Tried and removed: a new sentence at a change of speaker
+
+Interviewer and interviewee talking without a pause end up in one sentence. CAM++ speaker embeddings
+(3D-Speaker, 28 MB, 35 ms per chunk; `scripts/eval_speaker_change.py`) separate FLEURS speakers well: at
+cosine 0.2 on chunks >= 1.5 s, 1.9% of same-speaker joins would split while 84% of changes to the other
+gender are caught (the WeSpeaker CAM++ model could not tell speakers apart at all). In the pipeline FLEURS was
+unchanged (COMET ja→vi 0.865), but on the street interview it split once correctly, once in the middle of one
+person's sentence, and the chunk after a split, re-identified alone in street noise, was taken for another
+language and lost. Removed; the model stays in the download manifest for the evaluation script.
+
+That also showed that dropping "another language" on one chunk's language ID was too hasty: now one guess only
+makes the sentence unconfirmed, and it is dropped when the check on more audio agrees (the Nepali interview in
+the news is still dropped: Whisper says "tl", then "ne").
+
 ## Known limitations
 
 - On a 4-core office PC, continuous dense speech (TV news) runs 12-16 s behind; conversation with pauses 2-6 s.
