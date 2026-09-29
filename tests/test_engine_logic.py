@@ -410,7 +410,8 @@ def test_japanese_needs_a_longer_gap_to_cut():
     e = _engine(my_lang="vi", their_lang="auto")
     e.lid = FakeLid(["ja", "en"])
     e.asr = {"ja": FakeAsr(["電話をかけました"]), "en": FakeAsr(["Hello there"])}
-    cv = e._vad_for("them")
+    cv = _ChannelVad(FakeVad(), 2.5, 5.0, e._chunk_quiet("them"))  # no VAD model needed
+    e.vads["them"] = cv
     assert cv.quiet_windows == 2  # nothing heard yet
     e._add_chunk("them", np.full(48000, 0, np.float32), time.time(), False)
     assert cv.quiet_windows == 6
