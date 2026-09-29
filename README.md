@@ -42,16 +42,19 @@ Thứ trong tuần tiếng Việt ("thứ năm", "thứ 6", "chủ nhật") đã
 
 ## Cài đặt từ bản build (Releases)
 
-Tải gói cho máy của bạn ở trang **Releases**, giải nén, rồi tải model một lần (khoảng 2,9 GB, cần internet lúc này):
+Tải gói cho máy của bạn ở trang **Releases**. Lần chạy đầu app tự tải model (khoảng 2,9 GB, cần internet lúc này).
 
-| Hệ điều hành | Gói | Tải model | Chạy |
+| Hệ điều hành | Gói | Cách chạy | Model và lịch sử nằm ở |
 |---|---|---|---|
-| Windows 10/11 x64 | `TransVoice-windows-x64.zip` | `TransVoice.exe --download-models` | `TransVoice.bat` |
-| macOS Apple Silicon | `TransVoice-macos-arm64.tar.gz` | `./TransVoice --download-models` | `./run.sh` |
-| Linux x64 | `TransVoice-linux-x64.tar.gz` | `./TransVoice --download-models` | `./run.sh` |
+| Windows 10/11 x64 | `TransVoice-windows-x64.exe` (một file) | bấm đúp | cạnh file `.exe` |
+| Windows 10/11 x64 | `TransVoice-windows-x64.zip` (thư mục) | giải nén, bấm `TransVoice.bat` | thư mục đã giải nén |
+| Linux x64 (Debian/Ubuntu) | `transvoice_<phiên bản>_amd64.deb` | `sudo apt install ./transvoice_*.deb`, rồi lệnh `transvoice` hoặc menu ứng dụng | `~/.local/share/transvoice` |
+| Linux x64 | `TransVoice-linux-x64.tar.gz` | giải nén, `./run.sh` | thư mục đã giải nén |
+| macOS Apple Silicon | `TransVoice-macos-arm64.dmg` | mở `.dmg`, chạy `TransVoice` | `~/Library/Application Support/TransVoice` |
 
-Máy không có internet: chép nguyên thư mục `models/` từ một máy đã tải sang, đặt cạnh file chạy.
-Khi chạy, app dùng khoảng 3,5–4 GB RAM.
+Tải model trước mà không chạy: `TransVoice --download-models`. Máy không có internet: chép nguyên thư mục `models/`
+từ một máy đã tải sang, vào chỗ ghi ở cột cuối (biến môi trường `TRANSVOICE_HOME` đổi được chỗ này).
+`TransVoice --version` cho biết phiên bản. Khi chạy, app dùng khoảng 3,5–4 GB RAM.
 
 **Âm thanh máy trên macOS / Linux:**
 

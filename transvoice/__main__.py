@@ -14,10 +14,32 @@ from pathlib import Path
 
 import numpy as np
 
+from . import __version__
 from .engine import DEFAULT_MT, LANGS, Engine, Settings
 from .osutil import lower_own_priority
 from .paths import MODELS, ROOT, SAMPLE_RATE
 from .session import SessionLog
+
+
+def own_console() -> bool:
+    """Windows: started by a double-click, so the console window closes as soon as we exit."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    return ctypes.windll.kernel32.GetConsoleProcessList((ctypes.c_uint * 2)(), 2) == 1
+
+
+def fetch_models() -> bool:
+    from .download import APP_MODELS, download
+
+    try:
+        download(APP_MODELS)
+        return True
+    except Exception as e:  # noqa: BLE001 - no network, disk full: explain instead of a traceback
+        print(f"\nTải model không xong ({type(e).__name__}). Kiểm tra mạng rồi chạy lại: phần đã tải được giữ, "
+              f"chỉ tải tiếp phần còn thiếu.\nThư mục model: {MODELS}", flush=True)
+        return False
 
 
 def load_glossary(path: Path | None) -> list[dict]:
@@ -78,6 +100,7 @@ def main() -> None:
     ap.add_argument("--no-drafts", action="store_true", help="chỉ dịch khi hết câu (nhẹ CPU hơn, kém 'trực tiếp')")
     ap.add_argument("--verbose", action="store_true", help="in cả bản dịch nháp ra console")
     ap.add_argument("--record", type=Path, help="ghi lại âm thanh máy đã nghe (16 kHz WAV) để kiểm tra lại bằng --file")
+    ap.add_argument("--version", action="version", version=f"TransVoice {__version__}")
     args = ap.parse_args()
 
     if sys.stdout.encoding.lower() != "utf-8":
@@ -90,17 +113,18 @@ def main() -> None:
         return
 
     if args.download_models:
-        from .download import APP_MODELS, download
-
-        download(APP_MODELS)
-        print(f"Xong. Model nằm trong {MODELS}")
+        if fetch_models():
+            print(f"Xong. Model nằm trong {MODELS}")
         return
 
     missing = [p for p in (DEFAULT_MT, MODELS / "vad" / "silero_vad.onnx",
                            MODELS / "bin" / "llama.cpp") if not p.exists()]
-    if missing:
-        print(f"Chưa có model trong {MODELS}.\nChạy trước:  TransVoice.exe --download-models  (khoảng 2,9 GB)")
-        sys.exit(1)
+    if missing:  # first run of a fresh install: fetch the models instead of stopping with a message
+        print(f"Lần chạy đầu: đang tải model (khoảng 2,9 GB) vào {MODELS} …", flush=True)
+        if not fetch_models():
+            if own_console():
+                input("Nhấn Enter để đóng.")
+            sys.exit(1)
     lower_own_priority()
 
     settings = Settings(my_lang=args.me, their_lang=args.them, glossary=load_glossary(args.glossary),
