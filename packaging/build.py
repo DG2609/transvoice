@@ -78,8 +78,9 @@ def build_deb(app: Path) -> Path:
     shutil.copytree(app, stage / "opt" / "transvoice", symlinks=True)
     (stage / "usr" / "bin").mkdir(parents=True)
     cmd = stage / "usr" / "bin" / "transvoice"
-    cmd.write_text('#!/bin/sh\n# Models and history go to ~/.local/share/transvoice (/opt is read-only).\n'
-                   'exec /opt/transvoice/TransVoice "$@"\n', encoding="utf-8")
+    cmd.write_text('#!/bin/sh\n# Models and history live in the user data folder, never in /opt (even when run as root).\n'
+                   ': "${TRANSVOICE_HOME:=${XDG_DATA_HOME:-$HOME/.local/share}/transvoice}"\n'
+                   'export TRANSVOICE_HOME\nexec /opt/transvoice/TransVoice "$@"\n', encoding="utf-8")
     cmd.chmod(0o755)
     (stage / "usr" / "share" / "applications").mkdir(parents=True)
     (stage / "usr" / "share" / "applications" / "transvoice.desktop").write_text(
